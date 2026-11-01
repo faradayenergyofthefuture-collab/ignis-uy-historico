@@ -142,7 +142,7 @@ def dotar_tiempo(df):
     d['anio']=t.dt.year;d['mes']=t.dt.month;d['dia']=t.dt.strftime('%Y-%m-%d');d['temporada']=np.where(d.mes==12,d.anio+1,d.anio)
     return d
 
-def heatmap_mensual(df, nombre):
+def heatmap_mensual(df, nombre, clave):
     if df.empty:st.info('Todavía no hay observaciones para este instrumento.');return
     counts=df.groupby(['anio','mes']).size().reset_index(name='total')
     years=range(2000,2027)
@@ -150,7 +150,7 @@ def heatmap_mensual(df, nombre):
     # NaN intentionally denotes no uploaded evidence for that month; never infer zero coverage.
     fig=go.Figure(go.Heatmap(z=matrix.values,x=[str(y) for y in years],y=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Set','Oct','Nov','Dic'],colorscale=[[0,'#302355'],[.25,'#6240a4'],[.5,'#b944a5'],[.75,'#ef777b'],[1,'#ffdb68']],colorbar={'title':'Registros'},hovertemplate='Año %{x} · %{y}<br>Detecciones %{z}<extra></extra>',xgap=2,ygap=2))
     fig.update_layout(title=nombre,template='plotly_dark',paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',height=440,margin=dict(l=25,r=15,t=50,b=30),xaxis=dict(tickangle=-55),yaxis=dict(autorange='reversed'))
-    st.plotly_chart(fig,use_container_width=True)
+    st.plotly_chart(fig,use_container_width=True,key=clave)
     st.caption('Celdas vacías = no hay detecciones en el material cargado; la cobertura efectiva del satélite no está verificada. No se interpretan automáticamente como cero actividad.')
 
 def resumen_estacional(df, sensor):
@@ -240,14 +240,14 @@ with tabs[2]:
     else:
         x,y,z=st.columns(3);x.metric('Registros en el recorte',f'{len(sample):,}');y.metric('Años con registros',sample.anio.nunique());z.metric('Sensores presentes',sample.instrumento.nunique())
         sensors=sorted(sample.instrumento.unique())
-        for sensor in sensors:heatmap_mensual(sample[sample.instrumento==sensor],sensor)
+        for i,sensor in enumerate(sensors):heatmap_mensual(sample[sample.instrumento==sensor],sensor,f'historico_mensual_{i}')
         st.subheader('Temporadas estivales · diciembre anterior + enero/febrero')
         summer=sample[sample.mes.isin([12,1,2])]
         ss=summer.groupby(['temporada','instrumento']).size().reset_index(name='detecciones')
         if len(ss):
             fig=px.bar(ss,x='temporada',y='detecciones',color='instrumento',barmode='group',template='plotly_dark',labels={'temporada':'Temporada estival','detecciones':'Registros'})
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
-            st.plotly_chart(fig,use_container_width=True)
+            st.plotly_chart(fig,use_container_width=True,key='temporadas_estivales')
             st.dataframe(ss,use_container_width=True,hide_index=True)
             st.download_button('Descargar resumen por temporada',ss.to_csv(index=False).encode('utf-8-sig'),file_name='IGNIS_temporadas.csv')
         st.warning('La existencia de registros no garantiza cobertura completa. No se comparan directamente los recuentos MODIS y VIIRS ni se estima una tendencia climática validada.')
@@ -281,27 +281,36 @@ with tabs[4]:
             st.dataframe(alert_df,use_container_width=True,hide_index=True)
         else:st.info('No se identificaron candidatos con el criterio piloto, o faltan años comparables. Esto NO significa ausencia de riesgo.')
         st.caption('Criterio: mismo sensor y mes, al menos 3 otros años con detecciones, mínimo 5 registros y al menos 2 veces la mediana. SIN normalización por cobertura: úsese solo como señal preliminar.')
-    case_path=BASE/'biblioteca_ignis'/'evidencias.json'
-    if case_path.exists():
-        try:
-            evidence=json.loads(case_path.read_text(encoding='utf-8'))
-            st.markdown('#### Catálogo documental independiente — casos de 2023')
-            st.caption('Este catálogo corresponde SOLO a expedientes de 2023; no constituye evidencia de archivos de otros años.')
-            options=evidence.get('casos',[])
-            if options:
-                choice=st.selectbox('Caso documentado',range(len(options)),format_func=lambda k:options[k].get('nombre','Caso '+str(k+1)))
-                case=options[choice]
-                st.write('**Región:**',case.get('nombre','—'),'· **Fechas UTC:**',', '.join(case.get('fechas_utc',[])))
-                st.write(case.get('resumen','Ver los reportes asociados en el documento original.'))
-                st.json({'recuentos_guía_2023':case.get('esperados',{}),'aclaracion':'Los recuentos guía de 2023 no proceden de la carga actual.'},expanded=False)
-        except Exception as e:st.warning(f'Catálogo no disponible: {e}')
+    st.divider()
+    st.markdown('#### Trazabilidad documental del año seleccionado')
+    if selected is None:
+        st.info('Seleccioná un año con registros para consultar la trazabilidad disponible.')
+    elif int(selected) != 2023:
+        st.info(f'No hay evidencia documental incorporada para el año {selected}. La biblioteca verificada actualmente corresponde a 2023; esto no prueba ausencia de incendios.')
+        st.caption('Los expedientes de 2023 permanecen conservados en biblioteca_ignis y no se atribuyen al año seleccionado.')
+    else:
+        case_path=BASE/'biblioteca_ignis'/'evidencias.json'
+        if case_path.exists():
+            try:
+                evidence=json.loads(case_path.read_text(encoding='utf-8'))
+                st.markdown('##### Biblioteca documental de 2023 (independiente de la carga FIRMS)')
+                st.caption('Los datos del catálogo son referencias históricas, no detecciones extraídas de la sesión actual.')
+                options=evidence.get('casos',[])
+                if options:
+                    choice=st.selectbox('Caso documentado',range(len(options)),format_func=lambda k:options[k].get('nombre','Caso '+str(k+1)),key='evidencia_2023')
+                    case=options[choice]
+                    st.write('**Región:**',case.get('nombre','—'),'· **Fechas UTC:**',', '.join(case.get('fechas_utc',[])))
+                    st.write(case.get('resumen','Ver los reportes asociados en el documento original.'))
+                    st.json({'recuentos_guía_2023':case.get('esperados',{}),'aclaracion':'Los recuentos guía de 2023 no proceden de la carga actual.'},expanded=False)
+            except Exception as e:st.warning(f'Catálogo no disponible: {e}')
+        else:st.info('No se encuentra el catálogo documental del proyecto.')
 
 with tabs[5]:
     st.subheader('Calendario final de actividad térmica observada')
     if sample.empty:st.info('El calendario aparecerá al cargar datos.')
     else:
         st.write('Calendario histórico por meses y sensor. Incluye solamente los datos que incorporaste al maestro.')
-        for sensor in sorted(sample.instrumento.unique()):heatmap_mensual(sample[sample.instrumento==sensor],sensor)
+        for i,sensor in enumerate(sorted(sample.instrumento.unique())):heatmap_mensual(sample[sample.instrumento==sensor],sensor,f'calendario_final_mensual_{i}')
         if selected is not None:
             st.subheader(f'Calendario diario · {selected}')
             daily=sample[sample.anio==selected].groupby(['dia','instrumento']).size().reset_index(name='detecciones')
