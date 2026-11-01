@@ -9,9 +9,6 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
-import folium
-from folium.plugins import HeatMap
-from streamlit_folium import st_folium
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -166,19 +163,63 @@ def resumen_estacional(df, sensor):
             warnings.append({'Año':int(r.anio),'Mes':int(r.mes),'Sensor':sensor,'Detecciones':int(r.n),'Mediana otros años':med,'Índice frente a mediana':round(r.n/max(med,1),2)})
     return warnings
 
+def mapa_ignis(datos, clave='ignis_mapa'):
+    """Mapa local sin servidores de teselas: los puntos y la densidad vienen del Maestro."""
+    import plotly.graph_objects as go
+    import numpy as np
+    from matplotlib.path import Path as MPath
+    border_file=BASE/'uruguay_contorno.geojson'
+    if not border_file.exists():
+        st.error('Falta uruguay_contorno.geojson en el repositorio.')
+        return
+    gj=json.loads(border_file.read_text(encoding='utf-8'))
+    geom=gj['features'][0]['geometry']
+    rings=geom['coordinates'] if geom['type']=='Polygon' else geom['coordinates'][0]
+    coords=np.asarray(rings[0], dtype=float)
+    clean=datos[['longitude','latitude']].apply(pd.to_numeric,errors='coerce').dropna()
+    clean=clean[clean.longitude.between(-59,-52)&clean.latitude.between(-36,-29)]
+    if clean.empty:
+        st.info('No hay coordenadas geográficas válidas para representar.')
+        return
+    from scipy.ndimage import gaussian_filter
+    x_edges=np.linspace(-58.8,-52.8,125)
+    y_edges=np.linspace(-35.4,-29.8,125)
+    h,_,_=np.histogram2d(clean.longitude,clean.latitude,bins=[x_edges,y_edges])
+    density=gaussian_filter(h.T,sigma=2.5)
+    x=(x_edges[:-1]+x_edges[1:])/2
+    y=(y_edges[:-1]+y_edges[1:])/2
+    xx,yy=np.meshgrid(x,y)
+    mask=MPath(coords).contains_points(np.column_stack([xx.ravel(),yy.ravel()])).reshape(xx.shape)
+    density[~mask]=np.nan
+    density[density<.06]=np.nan
+    fig=go.Figure()
+    fig.add_trace(go.Scatter(x=coords[:,0],y=coords[:,1],fill='toself',fillcolor='rgba(58,37,115,0.38)',mode='lines',line=dict(color='#9bc7ff',width=2),name='Uruguay (contorno aproximado)',hoverinfo='skip'))
+    fig.add_trace(go.Heatmap(x=x,y=y,z=density,colorscale=[[0,'#42206a'],[.25,'#8440a9'],[.5,'#dc4b95'],[.75,'#ff975a'],[1,'#ffe36c']],opacity=.90,zsmooth='best',colorbar=dict(title='Densidad visual',tickfont=dict(color='white')),hovertemplate='Longitud: %{x:.2f}<br>Latitud: %{y:.2f}<br>Densidad visual: %{z:.2f}<extra></extra>'))
+    plotpoints=clean.sample(min(len(clean),3000),random_state=42) if len(clean)>3000 else clean
+    fig.add_trace(go.Scattergl(x=plotpoints.longitude,y=plotpoints.latitude,mode='markers',marker=dict(size=4,color='#dff4ff',opacity=.55),name='Observaciones',hovertemplate='Longitud: %{x:.4f}<br>Latitud: %{y:.4f}<extra>Registro FIRMS</extra>'))
+    for name,lon,lat in [('Artigas',-56.0,-30.45),('Durazno',-56.52,-33.22),('Canelones',-56.28,-34.55),('Maldonado',-54.95,-34.73),('Rocha',-54.32,-34.12)]:
+        fig.add_annotation(x=lon,y=lat,text=name,showarrow=False,font=dict(size=11,color='#f0eaff'),bgcolor='rgba(8,12,36,.65)',borderpad=3)
+    fig.update_layout(height=600,margin=dict(l=10,r=18,t=28,b=15),paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='#0b1230',font=dict(color='#e8ecff'),legend=dict(orientation='h',y=1.02,x=0))
+    fig.update_xaxes(range=[-58.85,-52.65],title='Longitud',gridcolor='rgba(128,158,220,.13)',zeroline=False)
+    fig.update_yaxes(range=[-35.45,-29.75],title='Latitud',gridcolor='rgba(128,158,220,.13)',zeroline=False,scaleanchor='x',scaleratio=1)
+    st.plotly_chart(fig,use_container_width=True,key=clave)
+    st.caption('Densidad relativa ilustrativa calculada a partir de los puntos FIRMS cargados. Contorno nacional de Natural Earth (escala general): no delimita departamentos ni certifica fronteras. El mapa no representa incendios confirmados, superficies quemadas ni densidad ajustada por cobertura satelital.')
+
 def asset_uri(path, mime='image/png'):
     if not path.exists():return ''
     return f'data:{mime};base64,'+base64.b64encode(path.read_bytes()).decode('ascii')
 
 logo=BASE/'logo_ignis.png'
 ema=BASE/'logo_ema.png'
+nasa=BASE/'logo_nasa.png'
 header_left,header_right=st.columns([1.15,8.85],vertical_alignment='center')
 with header_left:
     if logo.exists():st.image(str(logo),width=132)
     else:st.write('🛰️')
 with header_right:
     badge_ema=f'<span class="ignis-badge"><img src="{asset_uri(ema)}" alt="Escudo EMA"/> EMA</span>' if ema.exists() else ''
-    st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span><span class="ignis-badge">🛰️ NASA Space Apps 2026</span>{badge_ema}</div></div>''',unsafe_allow_html=True)
+    badge_nasa=f'<span class="ignis-badge"><img src="{asset_uri(nasa)}" alt="Emblema NASA"/> NASA Space Apps 2026</span>' if nasa.exists() else '<span class="ignis-badge">NASA Space Apps 2026</span>'
+    st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span>{badge_nasa}{badge_ema}</div></div>''',unsafe_allow_html=True)
 
 st.info('Los registros son anomalías térmicas, no incendios confirmados. Este prototipo no proporciona alertas operativas ni mide superficies quemadas.')
 tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF'])
@@ -245,7 +286,8 @@ with tabs[2]:
         summer=sample[sample.mes.isin([12,1,2])]
         ss=summer.groupby(['temporada','instrumento']).size().reset_index(name='detecciones')
         if len(ss):
-            fig=px.bar(ss,x='temporada',y='detecciones',color='instrumento',barmode='group',template='plotly_dark',labels={'temporada':'Temporada estival','detecciones':'Registros'})
+            ss['temporada_etiqueta']=ss['temporada'].astype(int).astype(str)
+            fig=px.bar(ss,x='temporada_etiqueta',y='detecciones',color='instrumento',barmode='group',template='plotly_dark',labels={'temporada_etiqueta':'Temporada estival','detecciones':'Registros'})
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig,use_container_width=True,key='temporadas_estivales')
             st.dataframe(ss,use_container_width=True,hide_index=True)
@@ -256,18 +298,16 @@ with tabs[3]:
     st.subheader('Mapa de detecciones térmicas de Uruguay')
     if sample.empty:st.info('Cargá datos antes de abrir el mapa.')
     else:
-        periodo=st.radio('Vista', ['Todo el histórico cargado','Año seleccionado'],horizontal=True)
+        periodo=st.radio('Vista',['Todo el histórico cargado','Año seleccionado'],horizontal=True,key='vista_mapa')
         mapped=sample if periodo=='Todo el histórico cargado' else sample[sample.anio==selected]
-        st.caption('Mapa de puntos dentro del rectángulo aproximado de Uruguay; puede incluir ubicaciones fuera de la frontera. No representa incendios ni áreas quemadas.')
+        st.caption('El mapa muestra observaciones dentro del recorte seleccionado; el recorte nacional es rectangular y puede contener puntos fuera del país.')
         if len(mapped):
-            points=mapped[['latitude','longitude']].dropna()
-            if len(points)>15000:
-                points=points.sample(15000,random_state=42)
-                st.caption('Visualización limitada a 15.000 observaciones seleccionadas reproduciblemente; los conteos se mantienen completos.')
-            fmap=folium.Map(location=[-32.9,-56],zoom_start=7,tiles='CartoDB dark_matter')
-            HeatMap(points.values.tolist(),radius=13,blur=18,min_opacity=.35).add_to(fmap)
-            st_folium(fmap,height=535,returned_objects=[],use_container_width=True)
-        st.caption('Densidad visual de registros, sin corrección por resolución, cobertura o revisitas de los distintos sensores.')
+            x,y,z=st.columns(3)
+            x.metric('Observaciones mostradas',f'{len(mapped):,}')
+            y.metric('Años presentes',mapped.anio.nunique())
+            z.metric('Instrumentos presentes',mapped.instrumento.nunique())
+            mapa_ignis(mapped,'mapa_uy_historico_v32')
+        else:st.info('No hay observaciones disponibles para ese año y región.')
 
 with tabs[4]:
     st.subheader('Actividad inusual exploratoria y trazabilidad documental')
@@ -340,7 +380,7 @@ def construir_pdf(datos, ano, region, sensores):
     if yr.empty:story.append(T('No hay detecciones del año seleccionado en el recorte e instrumentos elegidos. Esto no demuestra ausencia de incendios.'))
     else:
         by=yr.groupby('instrumento').size().to_dict()
-        rows=[['Indicador','Resultado'],['Detecciones del año',str(len(yr))],['Días con detecciones',str(yr.dia.nunique())],['Mes con más detecciones',str(int(yr.groupby('mes').size().idxmax()))]]
+        rows=[['Indicador','Resultado'],['Detecciones del año',str(len(yr))],['Días con detecciones',str(yr.dia.nunique())],['Mes con más detecciones',['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][int(yr.groupby('mes').size().idxmax())-1]]]
         rows += [[k,str(v)] for k,v in sorted(by.items())]
         tb=Table(rows,colWidths=[8.0*cm,8.0*cm],repeatRows=1,hAlign='LEFT')
         tb.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e5edfa')),('GRID',(0,0),(-1,-1),.3,colors.HexColor('#b4c4db')),('FONTSIZE',(0,0),(-1,-1),8),('VALIGN',(0,0),(-1,-1),'TOP'),('BOTTOMPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),6)]))
@@ -356,7 +396,7 @@ def construir_pdf(datos, ano, region, sensores):
     if not byyear.empty:
         fig,ax=plt.subplots(figsize=(7.6,2.45))
         for sensor,sub in byyear.groupby('instrumento'):
-            ax.plot(sub.anio,sub.n,marker='o',markersize=2,label=sensor)
+            ax.bar(sub.anio.astype(int).astype(str),sub.n,label=sensor,alpha=.85)
         ax.set_xlabel('Año con registros');ax.set_ylabel('Detecciones');ax.grid(alpha=.2);ax.legend(fontsize=6,loc='upper left')
         fig.tight_layout();buf=io.BytesIO();fig.savefig(buf,format='png',dpi=155);plt.close(fig);buf.seek(0)
         story.append(RLImage(buf,width=16*cm,height=5.15*cm))

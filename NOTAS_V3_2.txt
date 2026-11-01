@@ -1,0 +1,3 @@
+IGNIS UY V3.2 — mapa Plotly sin teselas externas; emblema NASA; grafico PDF en barras; temporada con eje categorico.
+Maestro IGNIS NO incluido: se carga por la interfaz.
+Contorno Natural Earth generalizado, no delimita departamentos.
