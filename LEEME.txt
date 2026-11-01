@@ -1,0 +1,23 @@
+IGNIS UY — PILOTO HISTÓRICO 2000–2026
+
+El archivo ignis_historico.py es una aplicación Streamlit INDEPENDIENTE.
+No sustituye ni modifica la versión original de IGNIS UY 1.7.
+
+Para probarlo localmente:
+  pip install -r requirements.txt
+  streamlit run ignis_historico.py
+
+Para usarlo en Streamlit Cloud, crear una NUEVA app/repo con ignis_historico.py como entrada.
+NO sobrescribir streamlit_app.py en el repositorio original.
+
+Límites actuales:
+- Lee ZIP/CSV de NASA FIRMS que el equipo cargue de forma explícita.
+- MODIS del 2000 se admite sin VIIRS.
+- No descarga 27 años de datos automáticamente.
+- La carga de archivos depende de los límites de tamaño de Streamlit Cloud.
+- Un mes sin registros cargados no demuestra ausencia de detecciones ni cobertura completa.
+- El mapa es de densidad de puntos térmicos, no de incendios confirmados.
+- Los informes y evidencias 2023 siguen en la app original.
+- Las sumas crudas entre sensores no constituyen un histórico armonizado científicamente.
+
+NOTA: La imagen de diseño producida previamente es un mockup ilustrativo y sus números NO son resultados reales.
