@@ -1,43 +1,20 @@
-# IGNIS UY — Histórico v2.0 (piloto extendido)
+# IGNIS UY Histórico V3 — PDF y nueva cabecera
 
-Aplicación separada de IGNIS UY 1.7. No reemplaza ni modifica el repositorio original.
+Proyecto experimental de investigación NASA FIRMS. Basado en V2.
 
-## Publicación en Streamlit Cloud
+## Instalación / Streamlit
 
-En el repositorio `ignis-uy-historico`, subir los archivos de este ZIP a la **raíz**:
-- `ignis_historico.py`
-- `requirements.txt`
-- `logo_ignis.png`
-- carpeta `biblioteca_ignis/` con sus archivos
-- `README.md`
+Repositorio `ignis-uy-historico`, rama `main`, archivo principal `ignis_historico.py`. Subir a raíz los archivos de este paquete y conservar la carpeta `biblioteca_ignis/`.
 
-Archivo principal de Streamlit: `ignis_historico.py`. No subir el ZIP contenedor a GitHub como reemplazo de los archivos.
+## Novedades V3
 
-## Persistencia de 27 temporadas
+- Encabezado corregido con altura suficiente; fondo espacial **decorativo e ilustrativo** derivado de la maqueta conceptual. No representa detecciones científicas.
+- Logo IGNIS y escudo EMA aportado por el equipo. Inscripción en NASA Space Apps 2026 expresada como texto, sin afirmar patrocinio o aprobación institucional.
+- Séptima pestaña «Informe PDF»: informe descargable del **año, región e instrumentos seleccionados**, con contexto histórico disponible, recuentos, serie por instrumento, ubicaciones, actividad inusual piloto y limitaciones.
+- Se conserva la carga acumulativa del Maestro IGNIS de V2. La persistencia es manual (descargar/reimportar maestro), no automática.
 
-**Importante: los datos cargados en Streamlit Cloud no se guardan automáticamente en el servidor.**
+## Importante
 
-1. Cargar ZIP/CSV de NASA FIRMS.
-2. Pulsar «Descargar Maestro IGNIS actualizado» y guardar `IGNIS_MAESTRO_HISTORICO.zip` en la PC.
-3. En una nueva sesión, cargar primero el maestro anterior y después los ZIP/CSV nuevos.
-4. Descargar **otra vez** el maestro actualizado.
+No se ha demostrado la armonización cuantitativa entre sensores. Los gráficos del prototipo muestran detecciones; ninguna detección por sí sola confirma un incendio. Los meses sin detecciones en los archivos no prueban que el satélite haya observado sin incendios.
 
-La aplicación detecta duplicados exactos mediante una huella por fecha, latitud, longitud, instrumento, satélite, hora y observaciones instrumentales. Mantener los ZIP NASA originales. El maestro almacena observaciones normalizadas, sin los originales.
-
-Para persistencia automatizada multiusuario necesitaríamos una base de datos con acceso autenticado (no incluido en este piloto). No almacenar contraseñas o tokens en el repositorio público.
-
-## Alcances científicos
-
-- Los recuentos son anomalías térmicas observadas, no incendios confirmados.
-- Antes de 2012 VIIRS S-NPP no estaba operativo; mantener comparaciones por instrumento.
-- No comparar totales de instrumentos distintos sin normalización por resolución/cobertura/horario.
-- Las celdas sin detecciones cargadas no garantizan ausencia de actividad; pueden faltar datos u observaciones.
-- El filtro nacional es un rectángulo geográfico aproximado, no un polígono oficial.
-- La señal de actividad inusual es **exploratoria**, NO una alerta de emergencia ni predicción operacional.
-- El catálogo documental de 2023 es independiente de las cargas de otros períodos.
-- Las temporadas estivales se definen como diciembre del año anterior + enero y febrero del año titular.
-- Año 2000 es parcial en los registros MODIS Terra; 2026 podría estar incompleto.
-
-## Validación pendiente
-
-Pruebas integrales en Streamlit Cloud con ZIP FIRMS de diferentes instrumentos; revisión de solapamientos, integridad, límites nacionales oficiales, cobertura instrumental y normalización para comparación histórica rigurosa.
+Los archivos `logo_ignis.png`, `logo_ema.png` y `hero_espacio.jpg` deben quedar en la raíz del repositorio.
