@@ -361,68 +361,9 @@ with tabs[5]:
 
 # PDF document is generated exclusively from normalized uploaded data and the current filters.
 def construir_pdf(datos, ano, region, sensores):
-    output=io.BytesIO()
-    doc=SimpleDocTemplate(output,pagesize=A4,leftMargin=1.65*cm,rightMargin=1.65*cm,topMargin=1.65*cm,bottomMargin=1.6*cm,title='IGNIS UY | Informe científico exploratorio',author='Equipo IGNIS UY')
-    styles=getSampleStyleSheet()
-    styles.add(ParagraphStyle(name='IgnisTitle',parent=styles['Title'],textColor=colors.HexColor('#183564'),fontSize=18,leading=23,spaceAfter=13))
-    styles.add(ParagraphStyle(name='IgnisH',parent=styles['Heading2'],textColor=colors.HexColor('#244a83'),fontSize=12,spaceBefore=13,spaceAfter=7))
-    styles.add(ParagraphStyle(name='IgnisBody',parent=styles['BodyText'],fontSize=9,leading=13,spaceAfter=7))
-    T=lambda t:Paragraph(str(t),styles['IgnisBody'])
-    story=[]
-    if logo.exists():
-        story.append(RLImage(str(logo),width=2.1*cm,height=2.1*cm))
-    story += [Paragraph('IGNIS UY — Informe de actividad térmica',styles['IgnisTitle']),
-      T('Prototipo exploratorio · NASA FIRMS · Fecha de emisión UTC: '+datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')),
-      T('Recorte: '+region+' | Año: '+str(ano)+' | Instrumentos: '+', '.join(sensores)),
-      T('<b>Alcance:</b> las observaciones son anomalías térmicas satelitales, no incendios confirmados. Los recuentos MODIS y VIIRS no han sido calibrados para constituir una serie homogénea.'),
-      Paragraph('1. Resumen del año seleccionado',styles['IgnisH'])]
-    yr=datos[datos.anio==ano]
-    if yr.empty:story.append(T('No hay detecciones del año seleccionado en el recorte e instrumentos elegidos. Esto no demuestra ausencia de incendios.'))
-    else:
-        by=yr.groupby('instrumento').size().to_dict()
-        rows=[['Indicador','Resultado'],['Detecciones del año',str(len(yr))],['Días con detecciones',str(yr.dia.nunique())],['Mes con más detecciones',['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][int(yr.groupby('mes').size().idxmax())-1]]]
-        rows += [[k,str(v)] for k,v in sorted(by.items())]
-        tb=Table(rows,colWidths=[8.0*cm,8.0*cm],repeatRows=1,hAlign='LEFT')
-        tb.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e5edfa')),('GRID',(0,0),(-1,-1),.3,colors.HexColor('#b4c4db')),('FONTSIZE',(0,0),(-1,-1),8),('VALIGN',(0,0),(-1,-1),'TOP'),('BOTTOMPADDING',(0,0),(-1,-1),6),('TOPPADDING',(0,0),(-1,-1),6)]))
-        story.append(tb)
-    story.append(Paragraph('2. Calendario mensual del año',styles['IgnisH']))
-    months=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-    row_counts=yr.groupby('mes').size().to_dict() if len(yr) else {}
-    story.append(T(' / '.join(f'{months[i-1]}: {row_counts[i]}' if i in row_counts else f'{months[i-1]}: sin registros en los archivos' for i in range(1,13))))
-    story.append(T('La ausencia de registros no confirma cobertura temporal completa; el archivo puede corresponder solo a una temporada.'))
-    story.append(Paragraph('3. Contexto histórico del recorte',styles['IgnisH']))
-    story.append(T(f'Archivo histórico cargado: {len(datos):,} observaciones, años con detecciones: {datos.anio.nunique()}. No equivale a cobertura completa desde 2000 hasta 2026.'))
-    byyear=datos.groupby(['anio','instrumento']).size().reset_index(name='n')
-    if not byyear.empty:
-        fig,ax=plt.subplots(figsize=(7.6,2.45))
-        for sensor,sub in byyear.groupby('instrumento'):
-            ax.bar(sub.anio.astype(int).astype(str),sub.n,label=sensor,alpha=.85)
-        ax.set_xlabel('Año con registros');ax.set_ylabel('Detecciones');ax.grid(alpha=.2);ax.legend(fontsize=6,loc='upper left')
-        fig.tight_layout();buf=io.BytesIO();fig.savefig(buf,format='png',dpi=155);plt.close(fig);buf.seek(0)
-        story.append(RLImage(buf,width=16*cm,height=5.15*cm))
-    story.append(T('Comparación descriptiva por instrumento. No se infieren tasas de incendio ni tendencias climáticas sin verificación de cobertura, resolución y sensibilidad.'))
-    story.append(Paragraph('4. Mapa de detecciones: ubicación geográfica',styles['IgnisH']))
-    chosen=yr if len(yr) else datos
-    if len(chosen):
-        fig,ax=plt.subplots(figsize=(6.0,3.4));ax.scatter(chosen.longitude,chosen.latitude,s=3,alpha=.35,c='#d14d77')
-        ax.set(xlabel='Longitud',ylabel='Latitud',title='Puntos FIRMS del año (o histórico si no hay registros anuales)')
-        ax.set_xlim(-58.7,-52.8);ax.set_ylim(-35.3,-29.9);ax.grid(alpha=.2);fig.tight_layout()
-        buf=io.BytesIO();fig.savefig(buf,format='png',dpi=155);plt.close(fig);buf.seek(0)
-        story.append(RLImage(buf,width=11.8*cm,height=6.7*cm))
-        story.append(T('Ubicaciones sin fronteras administrativas verificadas. El mapa no representa superficies quemadas.'))
-    story.append(Paragraph('5. Actividad inusual y trazabilidad',styles['IgnisH']))
-    alerts=[]
-    for sensor in sorted(datos.instrumento.unique()):alerts+=resumen_estacional(datos,sensor)
-    only=[r for r in alerts if r['Año']==ano]
-    story.append(T(f'Candidatos de actividad inusual para {ano}: {len(only)}. Regla piloto: al menos 5 detecciones y 2 veces la mediana del mismo mes y sensor entre otros años con registros (mínimo tres). No constituye un pronóstico ni una alerta operativa.'))
-    if only:
-        story.append(T('; '.join(f"{r['Sensor']} mes {r['Mes']}: {r['Detecciones']} detecciones" for r in only[:12])))
-    story.append(T('Evidencia periodística: el catálogo del proyecto documenta casos de 2023; no se atribuyen automáticamente sus reportes a otras fechas o áreas de los archivos cargados.'))
-    story.append(Paragraph('6. Procedencia y limitaciones',styles['IgnisH']))
-    story.append(T('Fuente: archivos NASA FIRMS aportados por el usuario, normalizados por el prototipo IGNIS. La exportación del Maestro IGNIS permite conservar los registros entre sesiones, pero no constituye almacenamiento automático en la nube.'))
-    story.append(T('Limitaciones: cobertura temporal no certificada, denominadores de observación no disponibles, duplicados físicos intersatélite no resueltos y diferencias de sensibilidad y resolución entre MODIS y VIIRS.'))
-    doc.build(story)
-    return output.getvalue()
+    # Se mantiene intacta la ingestion, el Maestro, los filtros y las alertas.
+    from ignis_informe import generar_informe_pdf
+    return generar_informe_pdf(datos, ano, region, sensores, alertas_func=resumen_estacional)
 
 with tabs[6]:
     st.subheader('📄 Informe PDF — año seleccionado y contexto histórico')
@@ -437,7 +378,7 @@ with tabs[6]:
         st.caption(f'Recorte: {reg} · Instrumentos: {", ".join(sens)} · Histórico disponible: {sample.anio.min()}–{sample.anio.max()}.')
         preview=st.checkbox('Mostrar vista previa del contenido del informe',value=False)
         if preview:
-            st.markdown('**Secciones:** 1. Resumen anual · 2. Calendario mensual · 3. Serie histórica por instrumento · 4. Ubicación de detecciones · 5. Actividad inusual y trazabilidad · 6. Limitaciones y procedencia.')
+            st.markdown('**Secciones:** 1. Resumen anual · 2. Calendario mensual · 3. Calendario histórico · 4. Contexto instrumental · 5. Mapa térmico · 6. Actividad inusual y trazabilidad · 7. Armonización · 8. Procedencia.')
             st.dataframe(sample[sample.anio==selected].groupby(['mes','instrumento']).size().reset_index(name='detecciones'),use_container_width=True,hide_index=True)
         try:
             archivo_pdf=construir_pdf(sample,int(selected),reg,sens)
