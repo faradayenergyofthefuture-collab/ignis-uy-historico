@@ -24,17 +24,18 @@ def normalizar_catalogo(catalogo):
 
 
 def cargar_catalogo():
-    rutas = (RUTA_MAESTRO_HISTORICO, RUTA_CATALOGO)
-    ultimo_error = None
-    for ruta in rutas:
-        if not ruta.exists():
-            continue
+    if RUTA_MAESTRO_HISTORICO.exists():
         try:
-            with ruta.open("r", encoding="utf-8") as archivo:
+            with RUTA_MAESTRO_HISTORICO.open("r", encoding="utf-8") as archivo:
                 return normalizar_catalogo(json.load(archivo))
         except (OSError, json.JSONDecodeError, ValueError) as error:
-            ultimo_error = error
-    raise ValueError(f"No hay un catálogo documental válido disponible: {ultimo_error}")
+            raise ValueError(
+                "El maestro documental 2000–2026 está incompleto o vacío. "
+                "No se debe mostrar el catálogo antiguo de 2023 como sustituto."
+            ) from error
+
+    with RUTA_CATALOGO.open("r", encoding="utf-8") as archivo:
+        return normalizar_catalogo(json.load(archivo))
 
 
 def convertir_fuentes_a_casos(fuentes):
@@ -103,14 +104,17 @@ def mostrar_evidencias(datos: pd.DataFrame | None = None, año: int | None = Non
             try:
                 candidato = json.loads(maestro.getvalue().decode("utf-8-sig"))
                 candidato = normalizar_catalogo(candidato)
-                st.session_state["maestro_documental_activo"] = candidato
+                st.session_state["maestro_documental_2000_2026"] = candidato
                 st.success(f"Maestro documental cargado: {len(candidato['casos'])} casos por año.")
             except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, ValueError) as error:
                 st.error(f"No se pudo importar el Maestro documental: {error}")
 
     try:
-        catalogo = st.session_state.get("maestro_documental_activo")
-        catalogo = normalizar_catalogo(catalogo) if catalogo is not None else cargar_catalogo()
+        catalogo_sesion = st.session_state.get("maestro_documental_2000_2026")
+        if catalogo_sesion is not None:
+            catalogo = normalizar_catalogo(catalogo_sesion)
+        else:
+            catalogo = cargar_catalogo()
     except (OSError, json.JSONDecodeError, ValueError) as error:
         st.error(f"No se pudo leer el catálogo documental: {error}")
         return
