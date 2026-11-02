@@ -36,18 +36,47 @@ def coincidente_en_datos(caso: dict, datos: pd.DataFrame | None) -> tuple[bool, 
     return len(recorte) > 0, len(recorte)
 
 
-def mostrar_evidencias(datos: pd.DataFrame | None = None) -> None:
-    st.markdown("##### Evidencia externa verificada · 2023")
+def mostrar_evidencias(datos: pd.DataFrame | None = None, año: int | None = None) -> None:
+    etiqueta_año = str(año) if año is not None else "todos los años"
+    st.markdown(f"##### Evidencia externa verificada · {etiqueta_año}")
     st.info("Una noticia, declaración de Bomberos o informe SINAE confirma el contexto del incendio reportado, pero no valida cada detección FIRMS ni su perímetro.")
+
+    with st.expander("Maestro documental de fuentes externas", expanded=False):
+        maestro = st.file_uploader("Importar Maestro IGNIS documental (JSON)", type=["json"], key="maestro_documental")
+        if maestro is not None:
+            try:
+                candidato = json.loads(maestro.getvalue().decode("utf-8-sig"))
+                if not isinstance(candidato.get("casos"), list):
+                    raise ValueError("El archivo debe contener una lista llamada 'casos'.")
+                st.session_state["maestro_documental_activo"] = candidato
+                st.success(f"Maestro documental cargado: {len(candidato['casos'])} casos.")
+            except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, ValueError) as error:
+                st.error(f"No se pudo importar el Maestro documental: {error}")
+
     try:
-        catalogo = cargar_catalogo()
+        catalogo = st.session_state.get("maestro_documental_activo", cargar_catalogo())
     except (OSError, json.JSONDecodeError) as error:
         st.error(f"No se pudo leer el catálogo documental: {error}")
         return
 
+    st.download_button(
+        "Descargar Maestro documental activo (JSON)",
+        data=json.dumps(catalogo, ensure_ascii=False, indent=2).encode("utf-8"),
+        file_name="IGNIS_MAESTRO_DOCUMENTAL.json",
+        mime="application/json",
+        key="descargar_maestro_documental",
+    )
+
     casos = catalogo.get("casos", [])
+    if año is not None:
+        casos = [caso for caso in casos if any(str(fecha).startswith(str(año)) for fecha in caso.get("fechas_utc", []))]
+    if not casos:
+        st.warning(f"No hay fuentes externas incorporadas y verificadas para el año {año}. Esto no demuestra ausencia de incendios.")
+        st.caption("Para cada nuevo año deben añadirse casos con fecha, ubicación, enlace y alcance al catálogo biblioteca_ignis/evidencias.json.")
+        return
+
     opciones = {f"{caso['nombre']} ({', '.join(caso.get('fechas_utc', []))})": caso for caso in casos}
-    elegido = st.selectbox("Caso documentado", list(opciones), key="evidencia_documental_2023")
+    elegido = st.selectbox("Caso documentado", list(opciones), key=f"evidencia_documental_{año or 'todos'}")
     caso = opciones[elegido]
     coincide, cantidad = coincidente_en_datos(caso, datos)
 
@@ -96,7 +125,13 @@ def mostrar_evidencias(datos: pd.DataFrame | None = None) -> None:
     st.download_button(
         "Descargar catálogo completo de fuentes (JSON)",
         data=json.dumps(catalogo, ensure_ascii=False, indent=2).encode("utf-8"),
-        file_name="IGNIS_evidencias_externas_2023.json",
+        file_name="IGNIS_evidencias_externas.json",
         mime="application/json",
+    )
+    st.download_button(
+        "Descargar índice plano de fuentes (CSV)",
+        data=pd.DataFrame(filas).to_csv(index=False).encode("utf-8-sig"),
+        file_name="IGNIS_fuentes_externas.csv",
+        mime="text/csv",
     )
     st.caption("La ausencia de fuentes localizadas en el catálogo no prueba ausencia de incendios. Cada fuente conserva su URL original para auditoría.")

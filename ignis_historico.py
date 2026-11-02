@@ -453,12 +453,9 @@ with tabs[5]:
     st.markdown('#### Trazabilidad documental del año seleccionado')
     if selected is None:
         st.info('Seleccioná un año con registros para consultar la trazabilidad disponible.')
-    elif int(selected) != 2023:
-        st.info(f'No hay evidencia documental incorporada para el año {selected}. La biblioteca verificada actualmente corresponde a 2023; esto no prueba ausencia de incendios.')
-        st.caption('Los expedientes de 2023 permanecen conservados en biblioteca_ignis y no se atribuyen al año seleccionado.')
     else:
         from ignis_evidencias import mostrar_evidencias
-        mostrar_evidencias(combined if len(combined) else None)
+        mostrar_evidencias(combined if len(combined) else None, int(selected))
 
 with tabs[6]:
     st.subheader('Calendario final de actividad térmica observada')
