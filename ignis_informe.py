@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 from matplotlib.path import Path as MPath
 from scipy.ndimage import gaussian_filter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, PageBreak, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_JUSTIFY
@@ -223,6 +223,23 @@ def map_figure(df):
     return plot_buffer(fig)
 
 
+
+def alert_figure(candidates):
+    if not candidates:
+        return None
+    a=pd.DataFrame(candidates).groupby('Año').size()
+    fig,ax=plt.subplots(figsize=(10,2.25),facecolor=BG)
+    ax.set_facecolor(BG)
+    years=list(range(int(a.index.min()),int(a.index.max())+1))
+    ax.bar(years,[int(a.get(y,0)) for y in years],color='#bd80e6',width=.68)
+    ax.set_ylabel('Candidatos',color=WHITE)
+    ax.set_title('Candidatos exploratorios históricos por año (criterio piloto)',fontsize=10,color=WHITE)
+    ax.set_xticks(years[::max(1,len(years)//12)]); ax.tick_params(axis='x',labelrotation=40)
+    ax.tick_params(colors=WHITE,labelsize=8)
+    ax.grid(axis='y',alpha=.2,color=SOFT)
+    fig.tight_layout()
+    return plot_buffer(fig)
+
 def banner_table(text):
     tb=Table([[Paragraph(text, getSampleStyleSheet()['BodyText'])]], colWidths=[16.3*cm])
     tb.setStyle(TableStyle([
@@ -252,7 +269,7 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
 
     left=image_asset('logo_ignis_informe.png',2.3*cm) or image_asset('logo_ignis.png',2.3*cm)
     right=image_asset('logo_nasa_informe.png',2.1*cm) or image_asset('logo_nasa.png',2.1*cm)
-    header_center=Paragraph('IGNIS UY<br/><font size="10" color="#b8c9ee">Proyecto de investigación · NASA Space Apps Challenge 2026</font>',S['PaperT'])
+    header_center=Paragraph('IGNIS UY<br/><font size="9" color="#b8c9ee">Proyecto de investigación<br/>NASA Space Apps Challenge 2026</font>',S['PaperT'])
     if left and right:
         t=Table([[left,header_center,right]],colWidths=[3.2*cm,10.1*cm,2.7*cm],hAlign='CENTER')
         t.setStyle(TableStyle([('VALIGN',(0,0),(-1,-1),'MIDDLE'),('ALIGN',(0,0),(0,0),'LEFT'),('ALIGN',(2,0),(2,0),'RIGHT'),('BOTTOMPADDING',(0,0),(-1,-1),8)]))
@@ -266,7 +283,7 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
 
     hero=BASE/'hero_espacio.jpg'
     if hero.exists():
-        story.extend([RLImage(str(hero), width=16.3*cm, height=3.1*cm), Spacer(1,0.15*cm)])
+        story.extend([RLImage(str(hero), width=16.0*cm, height=2.75*cm), Spacer(1,0.15*cm)])
 
     meta=Table([
         [P(f'<b>Año seleccionado:</b> {ano}'), P(f'<b>Recorte:</b> {escape(region)}')],
@@ -323,17 +340,20 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
     if len(df):
         story.extend([RLImage(trend_figure(df),width=16*cm,height=5.2*cm),P('Figura 2. Cantidad de observaciones por año e instrumento. No debe interpretarse como tendencia climática o incidencia de incendios.','PaperCaption')])
 
-    story.append(P('5. Mapa térmico de Uruguay — año seleccionado','PaperH'))
+    story.append(PageBreak())
+    story.append(P('5. Distribución espacial de observaciones — Uruguay','PaperH'))
     map_data=map_figure(year) if len(year) else None
     if map_data:
-        story.extend([RLImage(map_data,width=15.8*cm,height=10.1*cm),P('Figura 3. Distribución espacial exclusiva del año seleccionado. Contorno general de referencia: no es densidad calibrada, incendio confirmado ni superficie quemada.','PaperCaption')])
+        story.extend([P(f'<b>Vista A · año {ano}.</b> Solo observaciones correspondientes al año elegido.','PaperBodySoft'), RLImage(map_data,width=14.7*cm,height=8.3*cm),P('Figura 3A. Distribución del año elegido. Densidad visual relativa, sin normalización por cobertura.','PaperCaption')])
     else:
-        story.append(P('No hay coordenadas válidas del año seleccionado para elaborar el mapa. No se sustituyen por datos de otros años.'))
+        story.append(P('No hay coordenadas válidas del año seleccionado para elaborar el mapa.'))
+    historic_map=map_figure(df) if len(df) else None
+    if historic_map:
+        story.extend([P('<b>Vista B · histórico acumulado.</b> Incorpora todos los años cargados; no se compara su escala térmica directamente con la vista anual.','PaperBodySoft'),RLImage(historic_map,width=14.7*cm,height=8.3*cm),P('Figura 3B. Distribución del Maestro completo. Ambas vistas muestran registros, no incendios confirmados.','PaperCaption')])
 
-    story.append(P('6. Armonización MODIS–VIIRS y alertas exploratorias','PaperH'))
-    module=BASE/'armonizacion_modis_viirs_y_alertas_exploratorias.png'
-    if module.exists():
-        story.extend([RLImage(str(module),width=16.25*cm,height=21.0*cm*16.25/17.2),Spacer(1,0.12*cm)])
+    story.append(PageBreak())
+    story.append(P('6. Armonización MODIS–VIIRS: resultados del Maestro','PaperH'))
+    story.append(P('Esta sección presenta datos calculados, no una infografía conceptual. La coincidencia requiere mismo día UTC y misma celda geográfica aproximada de 0,20 grados; no equivale a detección del mismo incendio.','PaperBodySoft'))
 
     armonia=resumen_armonizacion(df, ano)
     instruments=set(map(str,df.instrumento.astype(str).unique()))
@@ -372,13 +392,16 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
     else:
         story.append(P('Los archivos disponibles no contienen simultáneamente las familias MODIS y VIIRS en el recorte seleccionado. No hay comparación interinstrumental disponible para armonización.'))
 
-    story.append(P('7. Actividad inusual y trazabilidad documental','PaperH'))
+    story.append(P('7. Candidatos de actividad inusual y trazabilidad','PaperH'))
     candidates=[]
     if alertas_func is not None:
         for sensor in sorted(df.instrumento.unique()):
             candidates.extend(alertas_func(df,sensor))
     found=[x for x in candidates if int(x['Año'])==ano]
     story.append(P(f'En el histórico completo se identificaron {len(candidates)} candidatos estadísticos exploratorios; {len(found)} corresponden al año {ano}. No son alertas operativas ni incendios confirmados.'))
+    if candidates:
+        fig_alert=alert_figure(candidates)
+        story.extend([RLImage(fig_alert,width=15.7*cm,height=3.4*cm),P('Figura 4. Distribución de candidatos exploratorios históricos. No representa riesgo operativo ni una tasa de incendios.','PaperCaption')])
     story.append(P('Criterio piloto: por instrumento y mes, al menos 5 registros y por lo menos el doble de la mediana de 3 o más años distintos con registros comparables. Sin normalización por cobertura satelital: úsese únicamente como señal preliminar.','PaperBodySoft'))
     if found:
         r=[['Mes','Instrumento','Registros','Mediana','Índice']] + [[MONTHS[int(x['Mes'])-1][:3],str(x['Sensor']),str(x['Detecciones']),str(x['Mediana otros años']),str(x['Índice frente a mediana'])] for x in found[:16]]
@@ -401,10 +424,8 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
         w,h=A4
         canvas.setFillColor(colors.HexColor(BG))
         canvas.rect(0,0,w,h,fill=1,stroke=0)
-        if first:
-            hero_path=BASE/'hero_espacio.jpg'
-            if hero_path.exists():
-                canvas.drawImage(str(hero_path),0,h-5.0*cm,width=w,height=5.0*cm,mask='auto')
+        # La banda espacial ya se dibuja como elemento del documento;
+        # no superponerla a la portada ni a los logos.
         canvas.setStrokeColor(colors.HexColor('#2c4770'))
         canvas.line(1.55*cm,1.15*cm,w-1.55*cm,1.15*cm)
         canvas.setFont('Helvetica',7)

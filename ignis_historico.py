@@ -358,8 +358,7 @@ with tabs[3]:
     st.subheader('Armonización MODIS–VIIRS · módulo explicativo y comparativo')
     if sample.empty:st.info('Cargá datos históricos y seleccioná región, sensores y año para abrir la armonización.')
     else:
-        harmon_img=BASE/'armonizacion_modis_viirs_y_alertas_exploratorias.png'
-        if harmon_img.exists():st.image(str(harmon_img),use_container_width=True)
+        st.caption('Resultados calculados desde el Maestro IGNIS · análisis exploratorio, no calibración interinstrumental')
         armonia=resumen_armonizacion(sample,selected)
         if not armonia['has_both']:
             st.info('Con la selección actual no coexistieron MODIS y VIIRS en el mismo recorte; por eso la armonización aún no puede evaluarse.')
@@ -417,6 +416,7 @@ with tabs[5]:
             st.info(f'Para el año {selected} no surgieron alertas exploratorias con el criterio piloto, aunque sí hay {len(alert_df)} candidatos en el histórico cargado.')
         else:st.info('No se identificaron candidatos con el criterio piloto, o faltan años comparables. Esto NO significa ausencia de riesgo.')
         if len(alert_df):
+            st.markdown('#### Distribución histórica de candidatos por año')
             annual_alerts=alert_df.groupby('Año').size().reset_index(name='candidatos')
             fig=px.bar(annual_alerts,x='Año',y='candidatos',template='plotly_dark',labels={'candidatos':'Candidatos exploratorios'})
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',height=320,margin=dict(l=10,r=10,t=35,b=10))
