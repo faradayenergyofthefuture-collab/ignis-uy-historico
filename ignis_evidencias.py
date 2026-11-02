@@ -27,19 +27,21 @@ def convertir_fuentes_a_casos(fuentes):
     casos_por_año = {}
     for fuente in fuentes:
         año = int(fuente["anio"])
+        fechas = sorted({fecha for fecha in (
+            fuente.get("evento_desde", ""), fuente.get("evento_hasta", "")
+        ) if fecha})
         caso = casos_por_año.setdefault(año, {
             "id": f"documental-{año}",
             "anio": año,
             "nombre": f"Incidentes documentados {año}",
             "departamento": fuente.get("lugar_reportado", "Uruguay"),
-            "fechas_utc": sorted({fecha for fecha in (
-                fuente.get("evento_desde", ""), fuente.get("evento_hasta", "")
-            ) if fecha}),
+            "fechas_utc": fechas,
             "bbox": [-35.2, -30.0, -58.6, -53.0],
             "resumen": "Fuentes externas agregadas al maestro histórico; no constituyen perímetros ni validación individual de píxel.",
             "esperados": {},
             "fuentes": [],
         })
+        caso["fechas_utc"] = sorted(set(caso["fechas_utc"] + fechas))
         caso["fuentes"].append({
             "tipo": fuente.get("clase", "Fuente externa"),
             "medio": fuente.get("organismo", "Organismo no indicado"),
