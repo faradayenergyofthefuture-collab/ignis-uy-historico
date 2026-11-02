@@ -9,6 +9,7 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
+from ignis_coincidencias import emparejar, resumir_pares
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -358,7 +359,8 @@ with tabs[3]:
     st.subheader('Armonización MODIS–VIIRS · módulo explicativo y comparativo')
     if sample.empty:st.info('Cargá datos históricos y seleccioná región, sensores y año para abrir la armonización.')
     else:
-        st.caption('Resultados calculados desde el Maestro IGNIS · análisis exploratorio, no calibración interinstrumental')
+        harmon_img=BASE/'armonizacion_modis_viirs_y_alertas_exploratorias.png'
+        if harmon_img.exists():st.image(str(harmon_img),use_container_width=True)
         armonia=resumen_armonizacion(sample,selected)
         if not armonia['has_both']:
             st.info('Con la selección actual no coexistieron MODIS y VIIRS en el mismo recorte; por eso la armonización aún no puede evaluarse.')
@@ -380,6 +382,22 @@ with tabs[3]:
             with q2:
                 st.markdown("""<div style='background:linear-gradient(135deg,rgba(82,34,106,.42),rgba(20,43,76,.72));border:1px solid #d58fff;border-radius:16px;padding:16px 18px;margin-top:8px'><h4 style='margin:0 0 10px 0;color:#efb8ff'>Qué no permite todavía</h4><ul style='margin:0 0 0 18px'><li>No sumar MODIS y VIIRS como incendios equivalentes</li><li>No confirmar incendios operativos</li><li>No estimar superficie quemada</li><li>No compensar cobertura satelital de forma cuantitativa</li><li>No reemplazar la validación científica final</li></ul></div>""",unsafe_allow_html=True)
             st.caption('Metodología exploratoria aplicada en la app: misma región activa, mismo día UTC y misma celda espacial aproximada de 0.20°. Sirve para continuidad histórica, no para calibración definitiva.')
+            st.divider()
+            st.markdown('#### Segunda prueba: proximidad geográfica y horaria (experimental)')
+            st.caption('Los resultados siguientes no sustituyen las celdas de 0,20°. Buscan pares cercanos con hora de adquisición disponible; no significan un mismo incendio.')
+            km=st.slider('Distancia máxima entre observaciones (km)',1,20,5,1,key='ignis_radio_km')
+            minutos=st.slider('Diferencia horaria máxima (minutos)',5,120,30,5,key='ignis_tiempo_min')
+            pares=emparejar(sample,selected,km,minutos)
+            p1,p2,p3=st.columns(3)
+            p1.metric('Pares instrumentales candidatos',len(pares))
+            p2.metric('Días con pares',pares.fecha_utc.nunique() if len(pares) else 0)
+            p3.metric('Distancia mediana',f'{pares.distancia_km.median():.2f} km' if len(pares) else 'Sin pares')
+            if len(pares):
+                st.dataframe(resumir_pares(pares),use_container_width=True,hide_index=True)
+                st.download_button('Descargar pares candidatos (CSV)',pares.to_csv(index=False).encode('utf-8-sig'),file_name=f'IGNIS_pares_{selected}.csv',mime='text/csv')
+                st.caption('Un registro puede participar en pares de distintos satélites VIIRS; los pares NO son incendios únicos. FRP se conserva, pero NO se compara como medida calibrada.')
+            else: st.info('No se encontraron pares dentro de estos umbrales. Podés ampliar los parámetros sin modificar los datos.')
+
 
 with tabs[4]:
     st.subheader('Mapa de detecciones térmicas de Uruguay')
@@ -416,7 +434,6 @@ with tabs[5]:
             st.info(f'Para el año {selected} no surgieron alertas exploratorias con el criterio piloto, aunque sí hay {len(alert_df)} candidatos en el histórico cargado.')
         else:st.info('No se identificaron candidatos con el criterio piloto, o faltan años comparables. Esto NO significa ausencia de riesgo.')
         if len(alert_df):
-            st.markdown('#### Distribución histórica de candidatos por año')
             annual_alerts=alert_df.groupby('Año').size().reset_index(name='candidatos')
             fig=px.bar(annual_alerts,x='Año',y='candidatos',template='plotly_dark',labels={'candidatos':'Candidatos exploratorios'})
             fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',height=320,margin=dict(l=10,r=10,t=35,b=10))
