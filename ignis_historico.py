@@ -359,8 +359,7 @@ with tabs[3]:
     st.subheader('Armonización MODIS–VIIRS · módulo explicativo y comparativo')
     if sample.empty:st.info('Cargá datos históricos y seleccioná región, sensores y año para abrir la armonización.')
     else:
-        harmon_img=BASE/'armonizacion_modis_viirs_y_alertas_exploratorias.png'
-        if harmon_img.exists():st.image(str(harmon_img),use_container_width=True)
+        st.caption('Resultados instrumentales calculados desde el Maestro IGNIS. No se utiliza una infografía estática como evidencia.')
         armonia=resumen_armonizacion(sample,selected)
         if not armonia['has_both']:
             st.info('Con la selección actual no coexistieron MODIS y VIIRS en el mismo recorte; por eso la armonización aún no puede evaluarse.')
@@ -415,7 +414,14 @@ with tabs[4]:
         else:st.info('No hay observaciones disponibles para ese año y región.')
 
 with tabs[5]:
-    st.subheader('Actividad inusual exploratoria y trazabilidad documental')
+    st.subheader('⚠️ Panel de vigilancia histórica · señales para revisión')
+    st.markdown('''<style>
+    .ignis-alerta{background:linear-gradient(110deg,#511c2b,#251629);border:2px solid #ff5265;border-radius:16px;padding:20px;margin:13px 0;box-shadow:0 0 20px rgba(255,57,86,.14)}
+    .ignis-alerta h2{color:#ff7684!important;margin:0 0 7px 0;font-size:1.6rem;}
+    .ignis-alerta p{color:#ffe5e8;margin:0;font-size:1rem;}
+    .ignis-neutral{background:#14283e;border:1px solid #5b89af;border-radius:14px;padding:16px;margin:12px 0;}
+    .ignis-neutral strong{color:#b7e5ff;font-size:1.1rem;}
+    </style>''',unsafe_allow_html=True)
     if sample.empty:st.info('Se requieren registros históricos para analizar condiciones inusuales.')
     else:
         alerts=[]
@@ -427,11 +433,12 @@ with tabs[5]:
         m2.metric(f'Candidatos {selected}',int(len(current)))
         m3.metric('Sensores señalados',int(current['Sensor'].nunique()) if len(current) else 0)
         if len(current):
-            st.warning(f'Alerta exploratoria · no operativa: el año {selected} presenta {len(current)} candidatos estadísticos para revisión manual.')
+            st.markdown(f'''<div class="ignis-alerta" role="status"><h2>🚨 ATENCIÓN · {len(current)} señales estadísticas en {selected}</h2><p>Meses con actividad inusual respecto a la referencia histórica del mismo sensor. <b>Revisión recomendada.</b> No implica incendios confirmados ni alerta operativa.</p></div>''',unsafe_allow_html=True)
             current=current.copy(); current['Mes']=current['Mes'].map({1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'})
             st.dataframe(current[['Mes','Sensor','Detecciones','Mediana otros años','Índice frente a mediana']],use_container_width=True,hide_index=True)
         elif len(alert_df):
-            st.info(f'Para el año {selected} no surgieron alertas exploratorias con el criterio piloto, aunque sí hay {len(alert_df)} candidatos en el histórico cargado.')
+            st.markdown(f'''<div class="ignis-neutral" role="status"><strong>✅ {selected}: sin candidatos según el criterio piloto</strong><p>El histórico sí contiene <b>{len(alert_df)} señales estadísticas</b> para inspección. Esto no certifica ausencia de riesgo ni cobertura completa.</p></div>''',unsafe_allow_html=True)
+            st.markdown(f'#### 🚨 {len(alert_df)} señales históricas que merecen revisión')
         else:st.info('No se identificaron candidatos con el criterio piloto, o faltan años comparables. Esto NO significa ausencia de riesgo.')
         if len(alert_df):
             annual_alerts=alert_df.groupby('Año').size().reset_index(name='candidatos')

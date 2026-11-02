@@ -408,15 +408,50 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
     story.append(P('Limitaciones principales: cobertura temporal no certificada; resolución y sensibilidad diferentes por instrumento; revisitas orbitales no normalizadas; artefactos del contorno de referencia; y detecciones no verificadas como incendios. Los espacios vacíos en calendario y mapas significan ausencia de registros <i>en los archivos incorporados</i>.'))
     story.append(P('<b>Uso previsto:</b> informe técnico de investigación y base documental para el equipo IGNIS UY; no constituye un producto operativo de alerta ni una certificación de incendios.'))
 
+    # Conclusión sustentada en todo el Maestro, separando registros de incidencias.
+    total=int(len(df))
+    n_years=int(df.anio.nunique()) if len(df) else 0
+    n_sensors=int(df.instrumento.nunique()) if len(df) else 0
+    years_sorted=sorted(int(y) for y in df.anio.dropna().unique()) if len(df) else []
+    first_year=years_sorted[0] if years_sorted else ano
+    last_year=years_sorted[-1] if years_sorted else ano
+    n_current=len(year)
+    n_candidates=len(candidates)
+    story.append(P('9. Conclusiones del histórico completo','PaperH'))
+    story.append(P(
+        f'El Maestro IGNIS incorpora <b>{total:,} observaciones satelitales únicas</b> en '
+        f'<b>{n_years} años con registros ({first_year}–{last_year})</b> y '
+        f'<b>{n_sensors} familias instrumentales</b>. Esta base permite describir la distribución '
+        f'temporal y espacial de los registros aportados, documentar períodos de coexistencia de sensores '
+        f'y señalar meses estadísticamente inusuales para una revisión posterior. '
+        f'El año seleccionado ({ano}) contiene {n_current} registros; es una parte de la serie, '
+        f'no la conclusión completa del proyecto.'
+    ))
+    story.append(P(
+        f'En el conjunto histórico se identificaron <b>{n_candidates} candidatos exploratorios</b> '
+        f'con el criterio mensual adoptado, de los cuales <b>{len(found)}</b> corresponden a {ano}. '
+        'Asimismo, las coincidencias MODIS–VIIRS por día y celda, y los pares con proximidad '
+        'geográfica y horaria, constituyen relaciones observacionales reproducibles, '
+        'no detecciones de un mismo incendio verificadas. No se suman observaciones de '
+        'instrumentos distintos como si fueran eventos únicos.'
+    ))
+    story.append(P(
+        '<b>Conclusión científica:</b> IGNIS demuestra la viabilidad de integrar, explorar y '
+        'documentar observaciones FIRMS de distintos instrumentos en una interfaz única, '
+        'con límites de interpretación explícitos. El histórico no permite inferir por sí solo '
+        'un aumento o disminución de incendios ni una tendencia climática, debido a la '
+        'cobertura temporal no verificada, diferencias instrumentales y falta de normalización. '
+        'Una evolución futura requiere evaluación de cobertura, validación con fuentes externas '
+        'y calibración interinstrumental antes de derivar conclusiones cuantitativas.'
+    ))
+
+
     def draw_bg(canvas, document, first=False):
         canvas.saveState()
         w,h=A4
         canvas.setFillColor(colors.HexColor(BG))
         canvas.rect(0,0,w,h,fill=1,stroke=0)
-        if first:
-            hero_path=BASE/'hero_espacio.jpg'
-            if hero_path.exists():
-                canvas.drawImage(str(hero_path),0,h-5.0*cm,width=w,height=5.0*cm,mask='auto')
+        # El hero se inserta una sola vez en el contenido: sin segundo fondo en portada.
         canvas.setStrokeColor(colors.HexColor('#2c4770'))
         canvas.line(1.55*cm,1.15*cm,w-1.55*cm,1.15*cm)
         canvas.setFont('Helvetica',7)
