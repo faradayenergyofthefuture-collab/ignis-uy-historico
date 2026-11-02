@@ -457,21 +457,8 @@ with tabs[5]:
         st.info(f'No hay evidencia documental incorporada para el año {selected}. La biblioteca verificada actualmente corresponde a 2023; esto no prueba ausencia de incendios.')
         st.caption('Los expedientes de 2023 permanecen conservados en biblioteca_ignis y no se atribuyen al año seleccionado.')
     else:
-        case_path=BASE/'biblioteca_ignis'/'evidencias.json'
-        if case_path.exists():
-            try:
-                evidence=json.loads(case_path.read_text(encoding='utf-8'))
-                st.markdown('##### Biblioteca documental de 2023 (independiente de la carga FIRMS)')
-                st.caption('Los datos del catálogo son referencias históricas, no detecciones extraídas de la sesión actual.')
-                options=evidence.get('casos',[])
-                if options:
-                    choice=st.selectbox('Caso documentado',range(len(options)),format_func=lambda k:options[k].get('nombre','Caso '+str(k+1)),key='evidencia_2023')
-                    case=options[choice]
-                    st.write('**Región:**',case.get('nombre','—'),'· **Fechas UTC:**',', '.join(case.get('fechas_utc',[])))
-                    st.write(case.get('resumen','Ver los reportes asociados en el documento original.'))
-                    st.json({'recuentos_guía_2023':case.get('esperados',{}),'aclaracion':'Los recuentos guía de 2023 no proceden de la carga actual.'},expanded=False)
-            except Exception as e:st.warning(f'Catálogo no disponible: {e}')
-        else:st.info('No se encuentra el catálogo documental del proyecto.')
+        from ignis_evidencias import mostrar_evidencias
+        mostrar_evidencias(combined if len(combined) else None)
 
 with tabs[6]:
     st.subheader('Calendario final de actividad térmica observada')
