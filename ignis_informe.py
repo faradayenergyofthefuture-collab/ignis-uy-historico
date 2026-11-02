@@ -157,16 +157,26 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
     if alertas_func is not None:
         for sensor in sorted(df.instrumento.unique()):candidates.extend(alertas_func(df,sensor))
     found=[x for x in candidates if int(x['Año'])==ano]
-    story.append(P(f'Se detectaron {len(found)} candidatos estadísticos preliminares para {ano}. Criterio piloto: por instrumento y mes, al menos 5 registros, por lo menos el doble de la mediana, y tres años de comparación. No son alertas operativas.'))
+    story.append(P(f'En el histórico completo se identificaron {len(candidates)} candidatos estadísticos exploratorios; {len(found)} corresponden al año {ano}. No son alertas operativas ni incendios confirmados.'))
+    story.append(P('Criterio piloto: por instrumento y mes, al menos 5 registros, por lo menos el doble de la mediana de 3 o más años distintos con registros. No hay normalización por cobertura ni por revisitas orbitales.'))
     if found:
         r=[['Mes','Instrumento','Registros','Mediana','Relación']]
         for x in found[:16]:r.append([MONTHS[int(x['Mes'])-1][:3],str(x['Sensor']),str(x['Detecciones']),str(x['Mediana otros años']),str(x['Índice frente a mediana'])])
         tb=Table(r,colWidths=[2.1*cm,4.4*cm,3.2*cm,3.2*cm,3.2*cm],repeatRows=1);tb.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e4ebf6')),('GRID',(0,0),(-1,-1),.35,colors.HexColor('#cbd5e1')),('FONTSIZE',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),6),('BOTTOMPADDING',(0,0),(-1,-1),6)]));story.append(tb)
     story.append(P('La biblioteca documental incluida en el proyecto contiene expedientes de 2023; estos no se atribuyen automáticamente a otros años, lugares o registros FIRMS. Para establecer trazabilidad factual es necesario documentar fuentes independientes, fechas y coincidencia espacial.'))
     story.append(P('7. Armonización MODIS–VIIRS','PaperH'))
-    instruments=set(df.instrumento.unique());comparison=('MODIS' in instruments and 'VIIRS' in instruments)
-    if comparison:story.append(P('Hay observaciones de familias MODIS y VIIRS en los archivos cargados. Se presentan por separado: no se ha realizado una calibración cuantitativa interinstrumental ni se han resuelto todos los duplicados físicos entre sensores. La armonización queda pendiente de ajustar cobertura, resolución, revisitas, ventanas de observación y umbrales de detección.'))
-    else:story.append(P('La comparación interinstrumental no corresponde todavía: en el recorte histórico cargado no coexisten ambas familias MODIS y VIIRS. El encabezado del proyecto describe una línea de investigación futura, no una armonización ya validada.'))
+    instruments=set(df.instrumento.astype(str).unique())
+    has_modis=any(k.upper().startswith('MODIS') for k in instruments)
+    viirs_names=sorted(k for k in instruments if k.upper().startswith('VIIRS'))
+    if has_modis and viirs_names:
+        story.append(P('Coexistencia instrumental comprobada en el Maestro IGNIS: hay registros MODIS y de ' + escape(', '.join(viirs_names)) + '. Esta coexistencia habilita una comparación exploratoria, pero no demuestra armonización cuantitativa.'))
+        by_year=df.assign(familia=np.where(df.instrumento.astype(str).str.upper().str.startswith('VIIRS'),'VIIRS','MODIS')).groupby(['anio','familia']).size().unstack(fill_value=0)
+        overlap=by_year[(by_year.get('MODIS',pd.Series(0,index=by_year.index))>0)&(by_year.get('VIIRS',pd.Series(0,index=by_year.index))>0)]
+        if len(overlap):
+            story.append(P('Años con registros de ambas familias en el recorte: ' + ', '.join(str(int(y)) for y in overlap.index) + '. Estos totales son observaciones por sensor, no eventos físicos unificados.'))
+        story.append(P('Pendiente: evaluar coincidencias espacio-temporales, resolución, revisitas, cobertura efectiva, diferencias de sensibilidad y posibles detecciones coincidentes. No se suman registros entre familias para inferir incendios o tasas comparables.'))
+    else:
+        story.append(P('Los archivos disponibles no contienen simultáneamente las familias MODIS y VIIRS en el recorte seleccionado. No hay comparación interinstrumental disponible.'))
     story.append(P('8. Procedencia, reproducibilidad y limitaciones','PaperH'))
     story.append(P('Fuente primaria: archivos NASA FIRMS suministrados por el usuario y registros normalizados almacenados en el Maestro IGNIS. El Maestro se exporta manualmente y debe conservarse con los ZIP originales. El PDF se genera a partir del estado cargado en la sesión y los filtros activos.'))
     story.append(P('Limitaciones principales: cobertura temporal no certificada; resolución y sensibilidad diferentes por instrumento; revisitas orbitales no normalizadas; artefactos geográficos del contorno de referencia; y detecciones no verificadas como incendios. Los espacios vacíos en calendario y mapas significan ausencia de registros <i>en los archivos incorporados</i>.'))
