@@ -29,6 +29,7 @@ def convertir_fuentes_a_casos(fuentes):
         año = int(fuente["anio"])
         caso = casos_por_año.setdefault(año, {
             "id": f"documental-{año}",
+            "anio": año,
             "nombre": f"Incidentes documentados {año}",
             "departamento": fuente.get("lugar_reportado", "Uruguay"),
             "fechas_utc": sorted({fecha for fecha in (
@@ -108,7 +109,9 @@ def mostrar_evidencias(datos: pd.DataFrame | None = None, año: int | None = Non
 
     casos = catalogo.get("casos", [])
     if año is not None:
-        casos = [caso for caso in casos if any(str(fecha).startswith(str(año)) for fecha in caso.get("fechas_utc", []))]
+        casos = [caso for caso in casos if
+                 int(caso.get("anio", año)) == año
+                 or any(str(fecha).startswith(str(año)) for fecha in caso.get("fechas_utc", []))]
     if not casos:
         st.warning(f"No hay fuentes externas incorporadas y verificadas para el año {año}. Esto no demuestra ausencia de incendios.")
         st.caption("Para cada nuevo año deben añadirse casos con fecha, ubicación, enlace y alcance al catálogo biblioteca_ignis/evidencias.json.")
