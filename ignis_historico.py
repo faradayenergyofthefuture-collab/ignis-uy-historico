@@ -163,6 +163,66 @@ def resumen_estacional(df, sensor):
             warnings.append({'Año':int(r.anio),'Mes':int(r.mes),'Sensor':sensor,'Detecciones':int(r.n),'Mediana otros años':med,'Índice frente a mediana':round(r.n/max(med,1),2)})
     return warnings
 
+
+def familia_sensor(serie):
+    s=serie.astype(str).str.upper()
+    return np.where(s.str.startswith('VIIRS'),'VIIRS','MODIS')
+
+def periodos_sensor(df):
+    if df.empty:return []
+    by_year=df.groupby('anio')['instrumento'].apply(lambda s:' + '.join(sorted(set(map(str,s)))))
+    periods=[];start=prev=sig=None
+    for year, signature in by_year.items():
+        year=int(year)
+        if start is None:
+            start=prev=year;sig=signature;continue
+        if year==prev+1 and signature==sig:
+            prev=year;continue
+        periods.append({'Período':f'{start}–{prev}' if start!=prev else str(start),'Configuración instrumental':sig})
+        start=prev=year;sig=signature
+    if start is not None:
+        periods.append({'Período':f'{start}–{prev}' if start!=prev else str(start),'Configuración instrumental':sig})
+    return periods
+
+def resumen_armonizacion(df, ano=None, grid_deg=0.20):
+    if df.empty:
+        return {'has_both':False,'overlap_years':[],'selected_overlap_months':0,'selected_coincident_cells':0,'periods':[], 'table':pd.DataFrame(), 'coincidencias':pd.DataFrame()}
+    z=df.copy()
+    z['familia']=familia_sensor(z['instrumento'])
+    counts=z.groupby('familia').size().to_dict()
+    periods=periodos_sensor(z)
+    has_both=counts.get('MODIS',0)>0 and counts.get('VIIRS',0)>0
+    annual=z.groupby(['anio','familia']).size().unstack(fill_value=0)
+    overlap_years=[]
+    if not annual.empty:
+        overlap=annual[(annual.get('MODIS',0)>0)&(annual.get('VIIRS',0)>0)]
+        overlap_years=[int(y) for y in overlap.index.tolist()]
+    if not has_both:
+        return {'has_both':False,'overlap_years':overlap_years,'selected_overlap_months':0,'selected_coincident_cells':0,'periods':periods,'table':pd.DataFrame(), 'coincidencias':pd.DataFrame()}
+    q=z[['anio','mes','dia','latitude','longitude','familia']].dropna().copy()
+    q['latitude']=pd.to_numeric(q['latitude'],errors='coerce')
+    q['longitude']=pd.to_numeric(q['longitude'],errors='coerce')
+    q=q.dropna(subset=['latitude','longitude'])
+    q['grid_lat']=np.round(q['latitude']/grid_deg).astype(int)
+    q['grid_lon']=np.round(q['longitude']/grid_deg).astype(int)
+    cells=q.groupby(['anio','mes','dia','grid_lat','grid_lon','familia']).size().reset_index(name='n')
+    wide=cells.pivot_table(index=['anio','mes','dia','grid_lat','grid_lon'],columns='familia',values='n',aggfunc='sum',fill_value=0).reset_index()
+    wide['coincidencia']=(wide.get('MODIS',0)>0)&(wide.get('VIIRS',0)>0)
+    coinc=wide[wide['coincidencia']].copy()
+    monthly_presence=z.groupby(['anio','mes','familia']).size().unstack(fill_value=0)
+    monthly_presence=monthly_presence[(monthly_presence.get('MODIS',0)>0)&(monthly_presence.get('VIIRS',0)>0)].reset_index()
+    if ano is not None:
+        monthly_presence=monthly_presence[monthly_presence['anio']==int(ano)].copy()
+        coinc=coinc[coinc['anio']==int(ano)].copy()
+    coinc_month=coinc.groupby(['anio','mes']).size().reset_index(name='celdas_coincidentes') if len(coinc) else pd.DataFrame(columns=['anio','mes','celdas_coincidentes'])
+    table=monthly_presence[['anio','mes','MODIS','VIIRS']].copy() if len(monthly_presence) else pd.DataFrame(columns=['anio','mes','MODIS','VIIRS'])
+    if len(table):
+        table['Mes']=table['mes'].map({1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'})
+        table=table.merge(coinc_month[['mes','celdas_coincidentes']],on='mes',how='left').fillna({'celdas_coincidentes':0})
+        table=table[['Mes','MODIS','VIIRS','celdas_coincidentes']].rename(columns={'celdas_coincidentes':'Celdas coincidentes'})
+        table['Celdas coincidentes']=table['Celdas coincidentes'].astype(int)
+    return {'has_both':True,'overlap_years':overlap_years,'selected_overlap_months':int(len(monthly_presence)),'selected_coincident_cells':int(coinc_month['celdas_coincidentes'].sum()) if len(coinc_month) else 0,'periods':periods,'table':table,'coincidencias':coinc_month}
+
 def mapa_ignis(datos, clave='ignis_mapa'):
     """Mapa local sin servidores de teselas: los puntos y la densidad vienen del Maestro."""
     import plotly.graph_objects as go
@@ -222,7 +282,7 @@ with header_right:
     st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span>{badge_nasa}{badge_ema}</div></div>''',unsafe_allow_html=True)
 
 st.info('Los registros son anomalías térmicas, no incendios confirmados. Este prototipo no proporciona alertas operativas ni mide superficies quemadas.')
-tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF'])
+tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🔄 Armonización MODIS–VIIRS','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF'])
 with tabs[0]:
     st.subheader('Incorporación al histórico')
     st.write('Cargá ZIP/CSV FIRMS de una o varias temporadas. Para **guardar lo acumulado entre sesiones**, descargá el **Maestro IGNIS** actualizado y volvé a importarlo la próxima vez. Los datos **no se guardan automáticamente en la nube**.')
@@ -295,6 +355,34 @@ with tabs[2]:
         st.warning('La existencia de registros no garantiza cobertura completa. No se comparan directamente los recuentos MODIS y VIIRS ni se estima una tendencia climática validada.')
 
 with tabs[3]:
+    st.subheader('Armonización MODIS–VIIRS · módulo explicativo y comparativo')
+    if sample.empty:st.info('Cargá datos históricos y seleccioná región, sensores y año para abrir la armonización.')
+    else:
+        harmon_img=BASE/'armonizacion_modis_viirs_y_alertas_exploratorias.png'
+        if harmon_img.exists():st.image(str(harmon_img),use_container_width=True)
+        armonia=resumen_armonizacion(sample,selected)
+        if not armonia['has_both']:
+            st.info('Con la selección actual no coexistieron MODIS y VIIRS en el mismo recorte; por eso la armonización aún no puede evaluarse.')
+        else:
+            a,b,c,d=st.columns(4)
+            a.metric('Años con coexistencia',len(armonia['overlap_years']))
+            b.metric(f'Meses comparables {selected}',armonia['selected_overlap_months'])
+            c.metric(f'Celdas coincidentes {selected}',armonia['selected_coincident_cells'])
+            d.metric('Instrumentos presentes',sample.instrumento.nunique())
+            st.markdown('##### Línea de tiempo de sensores')
+            if armonia['periods']:st.dataframe(pd.DataFrame(armonia['periods']),use_container_width=True,hide_index=True)
+            if not armonia['table'].empty:
+                st.markdown('##### Coincidencia exploratoria del año seleccionado')
+                st.dataframe(armonia['table'],use_container_width=True,hide_index=True)
+            else:st.info(f'En el año {selected} hay coexistencia general en el histórico, pero no meses comparables con MODIS y VIIRS simultáneos dentro del recorte activo.')
+            q1,q2=st.columns(2)
+            with q1:
+                st.markdown("""<div style='background:linear-gradient(135deg,rgba(10,88,126,.42),rgba(20,43,76,.72));border:1px solid #4ed8ff;border-radius:16px;padding:16px 18px;margin-top:8px'><h4 style='margin:0 0 10px 0;color:#74e2ff'>Qué sí permite ahora</h4><ul style='margin:0 0 0 18px'><li>Visualizar continuidad histórica</li><li>Identificar coexistencia de sensores</li><li>Comparar meses con presencia simultánea</li><li>Detectar coincidencias exploratorias MODIS–VIIRS</li><li>Documentar el estado del sistema en el PDF</li></ul></div>""",unsafe_allow_html=True)
+            with q2:
+                st.markdown("""<div style='background:linear-gradient(135deg,rgba(82,34,106,.42),rgba(20,43,76,.72));border:1px solid #d58fff;border-radius:16px;padding:16px 18px;margin-top:8px'><h4 style='margin:0 0 10px 0;color:#efb8ff'>Qué no permite todavía</h4><ul style='margin:0 0 0 18px'><li>No sumar MODIS y VIIRS como incendios equivalentes</li><li>No confirmar incendios operativos</li><li>No estimar superficie quemada</li><li>No compensar cobertura satelital de forma cuantitativa</li><li>No reemplazar la validación científica final</li></ul></div>""",unsafe_allow_html=True)
+            st.caption('Metodología exploratoria aplicada en la app: misma región activa, mismo día UTC y misma celda espacial aproximada de 0.20°. Sirve para continuidad histórica, no para calibración definitiva.')
+
+with tabs[4]:
     st.subheader('Mapa de detecciones térmicas de Uruguay')
     if sample.empty:st.info('Cargá datos antes de abrir el mapa.')
     else:
@@ -309,17 +397,33 @@ with tabs[3]:
             mapa_ignis(mapped,'mapa_uy_historico_v32')
         else:st.info('No hay observaciones disponibles para ese año y región.')
 
-with tabs[4]:
+with tabs[5]:
     st.subheader('Actividad inusual exploratoria y trazabilidad documental')
     if sample.empty:st.info('Se requieren registros históricos para analizar condiciones inusuales.')
     else:
         alerts=[]
         for sensor in sorted(sample.instrumento.unique()):alerts+=resumen_estacional(sample,sensor)
-        if alerts:
-            alert_df=pd.DataFrame(alerts).sort_values(['Año','Mes'],ascending=False)
-            st.warning(f'{len(alert_df)} candidatos de actividad elevada respecto de la mediana mensual de otros años con registros. No son alertas operativas.')
-            st.dataframe(alert_df,use_container_width=True,hide_index=True)
+        alert_df=pd.DataFrame(alerts).sort_values(['Año','Mes'],ascending=False) if alerts else pd.DataFrame()
+        current=alert_df[alert_df['Año']==int(selected)].copy() if len(alert_df) and selected is not None else pd.DataFrame()
+        m1,m2,m3=st.columns(3)
+        m1.metric('Candidatos históricos',int(len(alert_df)))
+        m2.metric(f'Candidatos {selected}',int(len(current)))
+        m3.metric('Sensores señalados',int(current['Sensor'].nunique()) if len(current) else 0)
+        if len(current):
+            st.warning(f'Alerta exploratoria · no operativa: el año {selected} presenta {len(current)} candidatos estadísticos para revisión manual.')
+            current=current.copy(); current['Mes']=current['Mes'].map({1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'})
+            st.dataframe(current[['Mes','Sensor','Detecciones','Mediana otros años','Índice frente a mediana']],use_container_width=True,hide_index=True)
+        elif len(alert_df):
+            st.info(f'Para el año {selected} no surgieron alertas exploratorias con el criterio piloto, aunque sí hay {len(alert_df)} candidatos en el histórico cargado.')
         else:st.info('No se identificaron candidatos con el criterio piloto, o faltan años comparables. Esto NO significa ausencia de riesgo.')
+        if len(alert_df):
+            annual_alerts=alert_df.groupby('Año').size().reset_index(name='candidatos')
+            fig=px.bar(annual_alerts,x='Año',y='candidatos',template='plotly_dark',labels={'candidatos':'Candidatos exploratorios'})
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)',plot_bgcolor='rgba(0,0,0,0)',height=320,margin=dict(l=10,r=10,t=35,b=10))
+            st.plotly_chart(fig,use_container_width=True,key='alertas_por_ano')
+            with st.expander('Ver histórico completo de alertas exploratorias'):
+                full=alert_df.copy(); full['Mes']=full['Mes'].map({1:'Enero',2:'Febrero',3:'Marzo',4:'Abril',5:'Mayo',6:'Junio',7:'Julio',8:'Agosto',9:'Septiembre',10:'Octubre',11:'Noviembre',12:'Diciembre'})
+                st.dataframe(full[['Año','Mes','Sensor','Detecciones','Mediana otros años','Índice frente a mediana']],use_container_width=True,hide_index=True)
         st.caption('Criterio: mismo sensor y mes, al menos 3 otros años con detecciones, mínimo 5 registros y al menos 2 veces la mediana. SIN normalización por cobertura: úsese solo como señal preliminar.')
     st.divider()
     st.markdown('#### Trazabilidad documental del año seleccionado')
@@ -345,7 +449,7 @@ with tabs[4]:
             except Exception as e:st.warning(f'Catálogo no disponible: {e}')
         else:st.info('No se encuentra el catálogo documental del proyecto.')
 
-with tabs[5]:
+with tabs[6]:
     st.subheader('Calendario final de actividad térmica observada')
     if sample.empty:st.info('El calendario aparecerá al cargar datos.')
     else:
@@ -365,7 +469,7 @@ def construir_pdf(datos, ano, region, sensores):
     from ignis_informe import generar_informe_pdf
     return generar_informe_pdf(datos, ano, region, sensores, alertas_func=resumen_estacional)
 
-with tabs[6]:
+with tabs[7]:
     st.subheader('📄 Informe PDF — año seleccionado y contexto histórico')
     st.write('Generá un informe reproducible utilizando **solamente** los datos que cargaste o recuperaste mediante el Maestro IGNIS. Incluye el recorte, el año y los sensores seleccionados, más el contexto histórico disponible.')
     if sample.empty or selected is None:
@@ -378,7 +482,7 @@ with tabs[6]:
         st.caption(f'Recorte: {reg} · Instrumentos: {", ".join(sens)} · Histórico disponible: {sample.anio.min()}–{sample.anio.max()}.')
         preview=st.checkbox('Mostrar vista previa del contenido del informe',value=False)
         if preview:
-            st.markdown('**Secciones:** 1. Resumen anual · 2. Calendario mensual · 3. Calendario histórico · 4. Contexto instrumental · 5. Mapa térmico · 6. Actividad inusual y trazabilidad · 7. Armonización · 8. Procedencia.')
+            st.markdown('**Secciones:** 1. Resumen anual · 2. Calendario diario y mensual · 3. Contexto histórico · 4. Mapa térmico · 5. Armonización MODIS–VIIRS · 6. Alertas exploratorias · 7. Trazabilidad documental · 8. Procedencia y limitaciones.')
             st.dataframe(sample[sample.anio==selected].groupby(['mes','instrumento']).size().reset_index(name='detecciones'),use_container_width=True,hide_index=True)
         try:
             archivo_pdf=construir_pdf(sample,int(selected),reg,sens)
