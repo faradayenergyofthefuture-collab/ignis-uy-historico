@@ -8,11 +8,50 @@ import pandas as pd
 import streamlit as st
 
 RUTA_CATALOGO = Path(__file__).resolve().parent / "biblioteca_ignis" / "evidencias.json"
+RUTA_MAESTRO_HISTORICO = Path(__file__).resolve().parent / "catalogo_fuentes_2000_2026.json"
 
 
 def cargar_catalogo():
-    with RUTA_CATALOGO.open("r", encoding="utf-8") as archivo:
-        return json.load(archivo)
+    ruta = RUTA_MAESTRO_HISTORICO if RUTA_MAESTRO_HISTORICO.exists() else RUTA_CATALOGO
+    with ruta.open("r", encoding="utf-8") as archivo:
+        catalogo = json.load(archivo)
+    if "fuentes" in catalogo:
+        catalogo = {
+            **catalogo,
+            "casos": convertir_fuentes_a_casos(catalogo["fuentes"]),
+        }
+    return catalogo
+
+
+def convertir_fuentes_a_casos(fuentes):
+    casos_por_año = {}
+    for fuente in fuentes:
+        año = int(fuente["anio"])
+        caso = casos_por_año.setdefault(año, {
+            "id": f"documental-{año}",
+            "nombre": f"Incidentes documentados {año}",
+            "departamento": fuente.get("lugar_reportado", "Uruguay"),
+            "fechas_utc": sorted({fecha for fecha in (
+                fuente.get("evento_desde", ""), fuente.get("evento_hasta", "")
+            ) if fecha}),
+            "bbox": [-35.2, -30.0, -58.6, -53.0],
+            "resumen": "Fuentes externas agregadas al maestro histórico; no constituyen perímetros ni validación individual de píxel.",
+            "esperados": {},
+            "fuentes": [],
+        })
+        caso["fuentes"].append({
+            "tipo": fuente.get("clase", "Fuente externa"),
+            "medio": fuente.get("organismo", "Organismo no indicado"),
+            "titulo": fuente.get("titulo", "Fuente sin título"),
+            "fecha_publicacion": fuente.get("fecha_publicacion", ""),
+            "hecho_fecha_desde_local": fuente.get("evento_desde", ""),
+            "hecho_fecha_hasta_local": fuente.get("evento_hasta", ""),
+            "lugar": fuente.get("lugar_reportado", "Uruguay"),
+            "url": fuente.get("url", ""),
+            "alcance": fuente.get("alcance", "Fuente documental contextual"),
+            "notas": fuente.get("nota", ""),
+        })
+    return list(casos_por_año.values())
 
 
 def coincidente_en_datos(caso: dict, datos: pd.DataFrame | None) -> tuple[bool, int]:
