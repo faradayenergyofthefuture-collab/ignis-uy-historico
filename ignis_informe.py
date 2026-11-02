@@ -1,5 +1,5 @@
 """Generador del informe científico IGNIS UY. No modifica datos ni la lógica de ingestión."""
-import io, json
+import io, json, calendar
 from pathlib import Path
 from datetime import datetime, timezone
 from xml.sax.saxutils import escape
@@ -41,6 +41,48 @@ def calendar_figure(df):
     ax.set_xticks(range(0,27,2),years[::2],fontsize=7);ax.set_yticks(range(12),[x[:3] for x in MONTHS],fontsize=8);ax.tick_params(length=0)
     ax.set_title('Calendario histórico de registros por mes (archivos incorporados)',fontsize=11,pad=10)
     fig.colorbar(image,ax=ax,shrink=.8,label='Registros');fig.tight_layout();return plot_buffer(fig)
+
+
+def daily_calendar_figure(year, ano):
+    """Calendario visual de meses con registros; huecos no implican cero actividad."""
+    if year.empty:
+        return None
+    # La columna dia es una fecha normalizada en el Maestro IGNIS.
+    dates = pd.to_datetime(year['dia'], errors='coerce').dropna()
+    if dates.empty:
+        return None
+    daily = dates.dt.date.value_counts().to_dict()
+    months = sorted(set(dates.dt.month))
+    cols = min(3, len(months))
+    rows = (len(months) + cols - 1) // cols
+    fig, axes = plt.subplots(rows, cols, figsize=(10.2, 2.35 * rows + .3), squeeze=False)
+    maximum = max(daily.values()) if daily else 1
+    import matplotlib.colors as mcolors
+    norm = mcolors.Normalize(vmin=1, vmax=max(2, maximum))
+    for k, month in enumerate(months):
+        ax = axes[k // cols][k % cols]
+        ax.set_xlim(0, 7); ax.set_ylim(7.0, -.7); ax.axis('off')
+        ax.set_title(f'{MONTHS[month-1]} {ano}', loc='left', fontsize=11, fontweight='bold', color='#173967', pad=5)
+        for j, name in enumerate(['L', 'M', 'X', 'J', 'V', 'S', 'D']):
+            ax.text(j+.5, .35, name, ha='center', va='center', fontsize=8, color='#4d5a70')
+        weeks = calendar.Calendar(firstweekday=0).monthdatescalendar(int(ano), int(month))
+        for wi, week in enumerate(weeks):
+            for di, day in enumerate(week):
+                if day.month != month:
+                    continue
+                n = daily.get(day)
+                face = CMAP(norm(n)) if n is not None else '#eef1f6'
+                rect = plt.Rectangle((di+.055, wi+1.05), .89, .84, facecolor=face, edgecolor='#d1d7e0', linewidth=.6)
+                ax.add_patch(rect)
+                ax.text(di+.5, wi+1.33, str(day.day), ha='center', va='center', fontsize=7.3,
+                        color='white' if n is not None else '#6e7785')
+                if n is not None:
+                    ax.text(di+.5, wi+1.70, str(n), ha='center', va='center', fontsize=9,
+                            fontweight='bold', color='white')
+    for k in range(len(months), rows*cols):
+        axes[k // cols][k % cols].axis('off')
+    fig.tight_layout(pad=1.3)
+    return plot_buffer(fig)
 
 def trend_figure(df):
     agg=df.groupby(['anio','instrumento']).size().unstack(fill_value=0)
@@ -90,17 +132,26 @@ def generar_informe_pdf(datos,ano,region,sensores,alertas_func=None):
     rows.append(['Mes de máximo registro',MONTHS[int(year.groupby('mes').size().idxmax())-1] if len(year) else 'No disponible'])
     for k,v in sorted(year.groupby('instrumento').size().to_dict().items()):rows.append([f'Registros {k}',str(v)])
     table=Table(rows,colWidths=[8.5*cm,8*cm],repeatRows=1,hAlign='LEFT');table.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),colors.HexColor('#e4ebf6')),('GRID',(0,0),(-1,-1),.4,colors.HexColor('#ccd4e1')),('FONTSIZE',(0,0),(-1,-1),8),('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]));story.append(table)
-    story.append(P('3. Calendario y estacionalidad','PaperH'))
-    monthly=year.groupby('mes').size().to_dict();story.append(P(' · '.join(f'{MONTHS[i-1][:3]}: {monthly.get(i,"s/d")}' for i in range(1,13))))
-    if len(df):story.extend([RLImage(calendar_figure(df),width=16.0*cm,height=5.3*cm),P('Figura 1. Casilleros claros: sin registros en los archivos incorporados, no necesariamente cero actividad.','PaperCaption')])
+    story.append(P('3. Calendario diario y estacionalidad','PaperH'))
+    monthly=year.groupby('mes').size().to_dict()
+    if monthly:
+        story.append(P('<b>Meses con registros incorporados:</b> ' + ' · '.join(f'{MONTHS[int(m)-1]}: {n}' for m,n in sorted(monthly.items()))))
+    else:
+        story.append(P('El año seleccionado no contiene registros en los archivos incorporados.'))
+    story.append(P('Los meses que no figuran no tienen observaciones en los archivos cargados. Esto no demuestra ausencia de actividad térmica ni cobertura satelital completa.'))
+    visual=daily_calendar_figure(year,ano)
+    if visual:
+        story.extend([RLImage(visual,width=16.0*cm,height=(2.35 * ((len(monthly)+2)//3) + .3)*16.0/10.2*cm),
+            P('Calendario diario. En cada casillero coloreado, el número inferior indica observaciones FIRMS del día. Casilleros claros: sin registros en el material cargado; no equivalen a días sin incendios.','PaperCaption')])
+    if len(df):story.extend([RLImage(calendar_figure(df),width=16.0*cm,height=5.3*cm),P('Figura 1. Distribución histórica mensual de los registros cargados. Los casilleros claros no certifican ausencia de actividad ni cobertura completa.','PaperCaption')])
     story.append(P('4. Contexto histórico y comparación entre sensores','PaperH'))
-    story.append(P(f'El archivo seleccionado contiene {len(df):,} observaciones únicas distribuidas en {df.anio.nunique()} años con registros. Los recuentos no están normalizados por cobertura, revisitas o sensibilidad.'))
+    story.append(P(f'El histórico cargado contiene {len(df):,} observaciones únicas distribuidas en {df.anio.nunique()} años con registros. Los recuentos no están normalizados por cobertura, revisitas o sensibilidad.'))
     if len(df):story.extend([RLImage(trend_figure(df),width=16*cm,height=5.1*cm),P('Figura 2. Cantidad de observaciones por año e instrumento. No debe interpretarse como tendencia climática o incidencia de incendios.','PaperCaption')])
-    story.append(P('5. Distribución espacial: mapa térmico de Uruguay','PaperH'))
-    chosen=year if len(year) else df
+    story.append(P('5. Mapa térmico de Uruguay — año seleccionado','PaperH'))
+    chosen=year
     map_data=map_figure(chosen) if len(chosen) else None
-    if map_data:story.extend([RLImage(map_data,width=15.8*cm,height=10.1*cm),P('Figura 3. Densidad visual relativa de puntos FIRMS del año seleccionado (o histórico si el año carece de datos). Contorno general de Natural Earth. No es densidad calibrada ni superficie quemada.','PaperCaption')])
-    else:story.append(P('No hay coordenadas válidas para elaborar el mapa.'))
+    if map_data:story.extend([RLImage(map_data,width=15.8*cm,height=10.1*cm),P('Figura 3. Distribución espacial exclusiva del año seleccionado. Contorno general de Natural Earth. No es densidad calibrada ni superficie quemada.','PaperCaption')])
+    else:story.append(P('No hay coordenadas válidas del año seleccionado para elaborar el mapa. No se sustituyen por datos de otros años.'))
     story.append(P('6. Actividad inusual y trazabilidad documental','PaperH'))
     candidates=[]
     if alertas_func is not None:
