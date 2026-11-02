@@ -11,16 +11,30 @@ RUTA_CATALOGO = Path(__file__).resolve().parent / "biblioteca_ignis" / "evidenci
 RUTA_MAESTRO_HISTORICO = Path(__file__).resolve().parent / "catalogo_fuentes_2000_2026.json"
 
 
+def normalizar_catalogo(catalogo):
+    if not isinstance(catalogo, dict):
+        raise ValueError("El maestro documental debe ser un objeto JSON.")
+    fuentes = catalogo.get("fuentes")
+    casos = catalogo.get("casos")
+    if isinstance(fuentes, list) and fuentes:
+        return {**catalogo, "casos": convertir_fuentes_a_casos(fuentes)}
+    if isinstance(casos, list) and casos:
+        return catalogo
+    raise ValueError("El maestro documental debe contener una lista no vacía de 'fuentes' o 'casos'.")
+
+
 def cargar_catalogo():
-    ruta = RUTA_MAESTRO_HISTORICO if RUTA_MAESTRO_HISTORICO.exists() else RUTA_CATALOGO
-    with ruta.open("r", encoding="utf-8") as archivo:
-        catalogo = json.load(archivo)
-    if "fuentes" in catalogo:
-        catalogo = {
-            **catalogo,
-            "casos": convertir_fuentes_a_casos(catalogo["fuentes"]),
-        }
-    return catalogo
+    rutas = (RUTA_MAESTRO_HISTORICO, RUTA_CATALOGO)
+    ultimo_error = None
+    for ruta in rutas:
+        if not ruta.exists():
+            continue
+        try:
+            with ruta.open("r", encoding="utf-8") as archivo:
+                return normalizar_catalogo(json.load(archivo))
+        except (OSError, json.JSONDecodeError, ValueError) as error:
+            ultimo_error = error
+    raise ValueError(f"No hay un catálogo documental válido disponible: {ultimo_error}")
 
 
 def convertir_fuentes_a_casos(fuentes):
@@ -88,16 +102,16 @@ def mostrar_evidencias(datos: pd.DataFrame | None = None, año: int | None = Non
         if maestro is not None:
             try:
                 candidato = json.loads(maestro.getvalue().decode("utf-8-sig"))
-                if not isinstance(candidato.get("casos"), list):
-                    raise ValueError("El archivo debe contener una lista llamada 'casos'.")
+                candidato = normalizar_catalogo(candidato)
                 st.session_state["maestro_documental_activo"] = candidato
-                st.success(f"Maestro documental cargado: {len(candidato['casos'])} casos.")
+                st.success(f"Maestro documental cargado: {len(candidato['casos'])} casos por año.")
             except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, ValueError) as error:
                 st.error(f"No se pudo importar el Maestro documental: {error}")
 
     try:
-        catalogo = st.session_state.get("maestro_documental_activo", cargar_catalogo())
-    except (OSError, json.JSONDecodeError) as error:
+        catalogo = st.session_state.get("maestro_documental_activo")
+        catalogo = normalizar_catalogo(catalogo) if catalogo is not None else cargar_catalogo()
+    except (OSError, json.JSONDecodeError, ValueError) as error:
         st.error(f"No se pudo leer el catálogo documental: {error}")
         return
 
