@@ -98,8 +98,8 @@ def mostrar_evidencias(datos: pd.DataFrame | None = None, año: int | None = Non
     st.markdown(f"##### Evidencia externa verificada · {etiqueta_año}")
     st.info("Una noticia, declaración de Bomberos o informe SINAE confirma el contexto del incendio reportado, pero no valida cada detección FIRMS ni su perímetro.")
 
-    with st.expander("Maestro documental de fuentes externas", expanded=False):
-        maestro = st.file_uploader("Importar Maestro IGNIS documental (JSON)", type=["json"], key="maestro_documental")
+    with st.expander("Fuentes adicionales incorporadas por el usuario", expanded=False):
+        maestro = st.file_uploader("Importar otro Maestro IGNIS documental (JSON, opcional)", type=["json"], key="maestro_documental")
         if maestro is not None:
             try:
                 candidato = json.loads(maestro.getvalue().decode("utf-8-sig"))
@@ -111,16 +111,13 @@ def mostrar_evidencias(datos: pd.DataFrame | None = None, año: int | None = Non
 
     try:
         catalogo_sesion = st.session_state.get("maestro_documental_2000_2026")
-        if catalogo_sesion is not None:
-            catalogo = normalizar_catalogo(catalogo_sesion)
-        else:
-            catalogo = cargar_catalogo()
+        catalogo = normalizar_catalogo(catalogo_sesion) if catalogo_sesion is not None else cargar_catalogo()
     except (OSError, json.JSONDecodeError, ValueError) as error:
         st.error(f"No se pudo leer el catálogo documental: {error}")
         return
 
     st.download_button(
-        "Descargar Maestro documental activo (JSON)",
+        "Descargar catálogo anual incorporado (JSON)",
         data=json.dumps(catalogo, ensure_ascii=False, indent=2).encode("utf-8"),
         file_name="IGNIS_MAESTRO_DOCUMENTAL.json",
         mime="application/json",
