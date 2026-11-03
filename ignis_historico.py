@@ -283,7 +283,7 @@ with header_right:
     st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span>{badge_nasa}{badge_ema}</div></div>''',unsafe_allow_html=True)
 
 st.info('Los registros son anomalías térmicas, no incendios confirmados. Este prototipo no proporciona alertas operativas ni mide superficies quemadas.')
-tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🔄 Armonización MODIS–VIIRS','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF'])
+tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🔄 Armonización MODIS–VIIRS','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF','🛰️ Monitoreo reciente'])
 with tabs[0]:
     st.subheader('Incorporación al histórico')
     st.write('Cargá ZIP/CSV FIRMS de una o varias temporadas. Para **guardar lo acumulado entre sesiones**, descargá el **Maestro IGNIS** actualizado y volvé a importarlo la próxima vez. Los datos **no se guardan automáticamente en la nube**.')
@@ -514,6 +514,11 @@ with tabs[7]:
         except Exception as e:
             st.error(f'No pudo generarse el PDF: {type(e).__name__}: {e}')
         st.warning('Informe exploratorio: los datos de distintas plataformas no están armonizados cuantitativamente; no corresponde interpretar el total conjunto como número de incendios.')
+
+# Consulta opcional, aislada del Maestro y sin peticiones automáticas.
+with tabs[8]:
+    from ignis_nrt import mostrar_monitoreo_nrt
+    mostrar_monitoreo_nrt()
 
 st.divider()
 st.caption('IGNIS UY Histórico · prototipo de investigación · entradas NASA FIRMS · evidencia documental del equipo separada · respaldo manual del maestro obligatorio.')
