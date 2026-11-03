@@ -50,7 +50,7 @@ button[data-baseweb="tab"][aria-selected="true"]{color:#b79bff!important;border-
 .kicker{color:#ab9cff;font-size:13px;text-transform:uppercase;letter-spacing:2px;font-weight:700}
  .small-note{font-size:13px;color:#aab6d5}
 .ignis-badges{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:13px}
-.ignis-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;color:#f4f5ff;background:rgba(31,38,93,.88);border:1px solid #7882cd;border-radius:999px;font-size:12px;font-weight:700}
+.ignis-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;color:#f4f5ff;background:rgba(31,38,93,.88);border:1px solid #7882cd;border-radius:999px;font-size:12px;font-weight:700;text-decoration:none}
 .ignis-badge img{height:22px;width:22px;object-fit:contain}
 .ignis-badge.purple{background:#42318e;border-color:#9d85fc}
 [data-testid="stTabs"] [data-baseweb="tab-list"]{overflow-x:auto}
@@ -278,8 +278,8 @@ with header_left:
     if logo.exists():st.image(str(logo),width=132)
     else:st.write('🛰️')
 with header_right:
-    badge_ema=f'<span class="ignis-badge"><img src="{asset_uri(ema)}" alt="Escudo EMA"/> EMA</span>' if ema.exists() else ''
-    badge_nasa=f'<span class="ignis-badge"><img src="{asset_uri(nasa)}" alt="Emblema NASA"/> NASA Space Apps 2026</span>' if nasa.exists() else '<span class="ignis-badge">NASA Space Apps 2026</span>'
+    badge_ema=f'<a class="ignis-badge" href="https://ema.fau.mil.uy" target="_blank" rel="noopener noreferrer"><img src="{asset_uri(ema)}" alt="Escudo EMA"/> EMA</a>' if ema.exists() else ''
+    badge_nasa=f'<a class="ignis-badge" href="https://www.spaceappschallenge.org/" target="_blank" rel="noopener noreferrer"><img src="{asset_uri(nasa)}" alt="Emblema NASA"/> NASA Space Apps 2026</a>' if nasa.exists() else '<a class="ignis-badge" href="https://www.spaceappschallenge.org/" target="_blank" rel="noopener noreferrer">NASA Space Apps 2026</a>'
     st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span>{badge_nasa}{badge_ema}</div></div>''',unsafe_allow_html=True)
 
 st.info('Los registros son anomalías térmicas, no incendios confirmados. Este prototipo no proporciona alertas operativas ni mide superficies quemadas.')
@@ -453,25 +453,9 @@ with tabs[5]:
     st.markdown('#### Trazabilidad documental del año seleccionado')
     if selected is None:
         st.info('Seleccioná un año con registros para consultar la trazabilidad disponible.')
-    elif int(selected) != 2023:
-        st.info(f'No hay evidencia documental incorporada para el año {selected}. La biblioteca verificada actualmente corresponde a 2023; esto no prueba ausencia de incendios.')
-        st.caption('Los expedientes de 2023 permanecen conservados en biblioteca_ignis y no se atribuyen al año seleccionado.')
     else:
-        case_path=BASE/'biblioteca_ignis'/'evidencias.json'
-        if case_path.exists():
-            try:
-                evidence=json.loads(case_path.read_text(encoding='utf-8'))
-                st.markdown('##### Biblioteca documental de 2023 (independiente de la carga FIRMS)')
-                st.caption('Los datos del catálogo son referencias históricas, no detecciones extraídas de la sesión actual.')
-                options=evidence.get('casos',[])
-                if options:
-                    choice=st.selectbox('Caso documentado',range(len(options)),format_func=lambda k:options[k].get('nombre','Caso '+str(k+1)),key='evidencia_2023')
-                    case=options[choice]
-                    st.write('**Región:**',case.get('nombre','—'),'· **Fechas UTC:**',', '.join(case.get('fechas_utc',[])))
-                    st.write(case.get('resumen','Ver los reportes asociados en el documento original.'))
-                    st.json({'recuentos_guía_2023':case.get('esperados',{}),'aclaracion':'Los recuentos guía de 2023 no proceden de la carga actual.'},expanded=False)
-            except Exception as e:st.warning(f'Catálogo no disponible: {e}')
-        else:st.info('No se encuentra el catálogo documental del proyecto.')
+        from ignis_evidencias import mostrar_evidencias
+        mostrar_evidencias(combined if len(combined) else None, int(selected))
 
 with tabs[6]:
     st.subheader('Calendario final de actividad térmica observada')
