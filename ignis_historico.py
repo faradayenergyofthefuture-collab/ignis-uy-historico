@@ -50,7 +50,7 @@ button[data-baseweb="tab"][aria-selected="true"]{color:#b79bff!important;border-
 .kicker{color:#ab9cff;font-size:13px;text-transform:uppercase;letter-spacing:2px;font-weight:700}
  .small-note{font-size:13px;color:#aab6d5}
 .ignis-badges{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin-top:13px}
-.ignis-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;color:#f4f5ff;background:rgba(31,38,93,.88);border:1px solid #7882cd;border-radius:999px;font-size:12px;font-weight:700}
+.ignis-badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;color:#f4f5ff;background:rgba(31,38,93,.88);border:1px solid #7882cd;border-radius:999px;font-size:12px;font-weight:700;text-decoration:none}
 .ignis-badge img{height:22px;width:22px;object-fit:contain}
 .ignis-badge.purple{background:#42318e;border-color:#9d85fc}
 [data-testid="stTabs"] [data-baseweb="tab-list"]{overflow-x:auto}
@@ -278,8 +278,8 @@ with header_left:
     if logo.exists():st.image(str(logo),width=132)
     else:st.write('🛰️')
 with header_right:
-    badge_ema=f'<span class="ignis-badge"><img src="{asset_uri(ema)}" alt="Escudo EMA"/> EMA</span>' if ema.exists() else ''
-    badge_nasa=f'<span class="ignis-badge"><img src="{asset_uri(nasa)}" alt="Emblema NASA"/> NASA Space Apps 2026</span>' if nasa.exists() else '<span class="ignis-badge">NASA Space Apps 2026</span>'
+    badge_ema=f'<a class="ignis-badge" href="https://ema.fau.mil.uy" target="_blank" rel="noopener noreferrer"><img src="{asset_uri(ema)}" alt="Escudo EMA"/> EMA</a>' if ema.exists() else ''
+    badge_nasa=f'<a class="ignis-badge" href="https://www.spaceappschallenge.org/" target="_blank" rel="noopener noreferrer"><img src="{asset_uri(nasa)}" alt="Emblema NASA"/> NASA Space Apps 2026</a>' if nasa.exists() else '<a class="ignis-badge" href="https://www.spaceappschallenge.org/" target="_blank" rel="noopener noreferrer">NASA Space Apps 2026</a>'
     st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span>{badge_nasa}{badge_ema}</div></div>''',unsafe_allow_html=True)
 
 st.info('Los registros son anomalías térmicas, no incendios confirmados. Este prototipo no proporciona alertas operativas ni mide superficies quemadas.')
