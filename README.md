@@ -14,6 +14,10 @@ Repositorio `ignis-uy-historico`, rama `main`, archivo principal `ignis_historic
 - Séptima pestaña «Informe PDF»: informe descargable del **año, región e instrumentos seleccionados**, con contexto histórico disponible, recuentos, serie por instrumento, ubicaciones, actividad inusual piloto y limitaciones.
 - Se conserva la carga acumulativa del Maestro IGNIS de V2. La persistencia es manual (descargar/reimportar maestro), no automática.
 
+## Datos en vivo
+
+La pestaña de carga incorpora consultas NRT de NASA FIRMS para Uruguay mediante una `FIRMS_MAP_KEY`. Configurala en Streamlit Cloud como secreto o copiá `.streamlit/secrets.toml.example` a `.streamlit/secrets.toml` para ejecutarlo localmente. Las respuestas cubren hasta los últimos 10 días y se cachean una hora. Los datos históricos continúan cargándose mediante ZIP, CSV o Maestro IGNIS.
+
 ## Importante
 
 No se ha demostrado la armonización cuantitativa entre sensores. Los gráficos del prototipo muestran detecciones; ninguna detección por sí sola confirma un incendio. Los meses sin detecciones en los archivos no prueban que el satélite haya observado sin incendios.

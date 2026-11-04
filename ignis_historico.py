@@ -1,11 +1,12 @@
 """IGNIS UY Histórico v2.0 — prototipo de análisis reproducible NASA FIRMS.
 El archivo maestro se exporta y se vuelve a importar; Streamlit Cloud no ofrece persistencia local garantizada.
 """
-import io, json, zipfile, hashlib, base64
+import io, json, zipfile, hashlib, base64, os
 from datetime import datetime, timezone
 from pathlib import Path
 import numpy as np
 import pandas as pd
+import requests
 import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
@@ -112,6 +113,62 @@ def normalizar(df):
     df=df.dropna(subset=['fecha','latitude','longitude'])
     df=df.drop_duplicates('id_registro',keep='first').reset_index(drop=True)
     return df
+
+def clave_firms():
+    try:
+        clave=str(st.secrets.get('FIRMS_MAP_KEY','')).strip()
+    except Exception:
+        clave=''
+    return clave or os.getenv('FIRMS_MAP_KEY','').strip()
+
+@st.cache_data(ttl=3600,show_spinner=False)
+def descargar_firms(source, bbox, dias):
+    clave=clave_firms()
+    if not clave:
+        raise RuntimeError('Falta configurar FIRMS_MAP_KEY.')
+    oeste,sur,este,norte=bbox
+    base='https://firms.modaps.eosdis.nasa.gov/api/area/csv'
+    url=f'{base}/{clave}/{source}/{oeste},{sur},{este},{norte}/{int(dias)}'
+    try:
+        respuesta=requests.get(url,timeout=30)
+    except requests.RequestException as error:
+        raise RuntimeError(f'No se pudo contactar NASA FIRMS ({type(error).__name__}).') from error
+    texto=respuesta.text.strip()
+    if respuesta.status_code != 200 or texto.lower().startswith(('invalid','unauthorized')):
+        raise RuntimeError(f'NASA FIRMS rechazó la consulta ({respuesta.status_code}).')
+    if not texto:
+        return pd.DataFrame(columns=COLS)
+    try:
+        crudo=pd.read_csv(io.StringIO(texto),low_memory=False)
+    except Exception as error:
+        raise RuntimeError(f'NASA FIRMS devolvió datos ilegibles ({type(error).__name__}).') from error
+    crudo.columns=[str(columna).strip().lower() for columna in crudo.columns]
+    requeridas={'latitude','longitude','acq_date','acq_time'}
+    if not requeridas.issubset(crudo.columns):
+        raise RuntimeError('NASA FIRMS devolvió un formato inesperado.')
+    if source == 'MODIS_NRT':
+        instrumento='MODIS'
+    elif 'NOAA20' in source.upper() or 'NOAA-20' in source.upper():
+        instrumento='VIIRS NOAA-20'
+    elif 'NOAA21' in source.upper() or 'NOAA-21' in source.upper():
+        instrumento='VIIRS NOAA-21'
+    else:
+        instrumento='VIIRS S-NPP'
+    salida=pd.DataFrame(index=crudo.index)
+    salida['fecha']=pd.to_datetime(crudo['acq_date'],utc=True,errors='coerce').dt.strftime('%Y-%m-%d')
+    salida['latitude']=pd.to_numeric(crudo['latitude'],errors='coerce')
+    salida['longitude']=pd.to_numeric(crudo['longitude'],errors='coerce')
+    salida['instrumento']=instrumento
+    salida['satellite']=crudo.get('satellite',pd.Series('',index=crudo.index)).fillna('').astype(str).str.upper()
+    salida['acq_time']=crudo['acq_time'].fillna('').astype(str).str.replace(r'\.0$','',regex=True).str.zfill(4)
+    salida['frp']=pd.to_numeric(crudo.get('frp',pd.Series(np.nan,index=crudo.index)),errors='coerce')
+    salida['confidence']=crudo.get('confidence',pd.Series('',index=crudo.index)).fillna('').astype(str)
+    salida['fuente']=f'NASA FIRMS NRT :: {source}'
+    salida=salida.dropna(subset=['fecha','latitude','longitude'])
+    salida=salida[salida.latitude.between(-90,90)&salida.longitude.between(-180,180)].copy()
+    identidad=salida[['fecha','latitude','longitude','instrumento','satellite','acq_time','frp','confidence']].fillna('').astype(str).agg('|'.join,axis=1)
+    salida['id_registro']=identidad.map(lambda valor:hashlib.sha256(valor.encode()).hexdigest()[:24])
+    return normalizar(salida[COLS])
 
 @st.cache_data(show_spinner=False)
 def leer_maestro(blob):
@@ -286,7 +343,36 @@ st.info('Los registros son anomalías térmicas, no incendios confirmados. Este 
 tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🔄 Armonización MODIS–VIIRS','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF'])
 with tabs[0]:
     st.subheader('Incorporación al histórico')
-    st.write('Cargá ZIP/CSV FIRMS de una o varias temporadas. Para **guardar lo acumulado entre sesiones**, descargá el **Maestro IGNIS** actualizado y volvé a importarlo la próxima vez. Los datos **no se guardan automáticamente en la nube**.')
+    st.write('Cargá ZIP/CSV FIRMS de una o varias temporadas o consultá las detecciones NRT más recientes. Para **guardar lo acumulado entre sesiones**, descargá el **Maestro IGNIS** actualizado y volvé a importarlo la próxima vez. Los datos **no se guardan automáticamente en la nube**.')
+    st.markdown('#### Datos en vivo')
+    dias_vivos=st.slider('Últimos días disponibles',1,10,3,key='dias_firms_vivos')
+    fuentes_vivas=st.multiselect('Fuentes NASA FIRMS',[
+        ('MODIS_NRT','MODIS Aqua/Terra'),
+        ('VIIRS_SNPP_NRT','VIIRS S-NPP'),
+        ('VIIRS_NOAA20_NRT','VIIRS NOAA-20'),
+        ('VIIRS_NOAA21_NRT','VIIRS NOAA-21'),
+    ],format_func=lambda opcion:opcion[1],default=[('MODIS_NRT','MODIS Aqua/Terra'),('VIIRS_NOAA21_NRT','VIIRS NOAA-21')],key='fuentes_firms_vivas')
+    vivos=pd.DataFrame(columns=COLS)
+    if st.button('Actualizar datos en vivo de Uruguay',type='primary'):
+        consultas=[]
+        sur,norte,oeste,este=REGIONES['Uruguay (rectángulo aproximado)']
+        bbox=(oeste,sur,este,norte)
+        for source,_ in fuentes_vivas:
+            try:
+                consultas.append(descargar_firms(source,bbox,dias_vivos))
+                st.toast(f'{source}: consulta completada')
+            except Exception as error:
+                st.error(str(error))
+        if consultas:
+            vivos=normalizar(pd.concat(consultas,ignore_index=True))
+            st.session_state['ignis_firms_vivos']=vivos
+            st.success(f'Datos NRT incorporados: {len(vivos):,} detecciones.')
+    elif 'ignis_firms_vivos' in st.session_state:
+        vivos=normalizar(st.session_state['ignis_firms_vivos'])
+        st.caption(f'Última actualización NRT disponible en esta sesión: {len(vivos):,} detecciones.')
+    st.caption('La consulta NRT de FIRMS requiere una FIRMS MAP_KEY configurada en Secrets. Puede cubrir hasta 10 días; el historial completo sigue dependiendo de archivos históricos.')
+
+    st.markdown('#### Archivos históricos')
     master=st.file_uploader('1 · Maestro IGNIS anterior (opcional, archivo ZIP exportado por esta aplicación)',type=['zip'],key='master')
     rawfiles=st.file_uploader('2 · Nuevos ZIP o CSV NASA FIRMS (varios simultáneamente)',type=['zip','csv'],accept_multiple_files=True,key='raws')
     base=pd.DataFrame(columns=COLS)
@@ -298,14 +384,16 @@ with tabs[0]:
     for a in (rawfiles or []):
         new,issues,sources=parse_firms(a.getvalue(),a.name)
         inputs.append(new);inventory.extend(sources);problems.extend(issues)
-    if inputs:
-        combined=normalizar(pd.concat([base]+inputs,ignore_index=True))
-    else:combined=normalizar(base)
+    entradas=[base]+inputs
+    if len(vivos):
+        entradas.append(vivos)
+    combined=normalizar(pd.concat([entrada for entrada in entradas if len(entrada)],ignore_index=True)) if any(len(entrada) for entrada in entradas) else normalizar(base)
     for problem in problems:st.warning(problem)
-    aa,bb,cc=st.columns(3)
+    aa,bb,cc,dd=st.columns(4)
     aa.metric('Registros del maestro anterior',f'{len(base):,}')
     bb.metric('Observaciones nuevas, netas',f'{max(len(combined)-len(base),0):,}')
-    cc.metric('Registros acumulados, sin duplicados',f'{len(combined):,}')
+    cc.metric('Datos NRT incorporados',f'{len(vivos):,}')
+    dd.metric('Registros acumulados, sin duplicados',f'{len(combined):,}')
     if inventory:st.dataframe(pd.DataFrame(inventory),use_container_width=True,hide_index=True)
     if len(combined):
         st.download_button('⬇️ Descargar Maestro IGNIS actualizado (guardar para la próxima sesión)',crear_maestro(combined),file_name='IGNIS_MAESTRO_HISTORICO.zip',mime='application/zip',type='primary')
