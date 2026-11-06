@@ -1,4 +1,4 @@
-"""IGNIS UY · Fusión satelital-terrestre, versión cartográfica 2.0 (2026-11-05).
+"""IGNIS UY · Fusión satelital-terrestre, versión cartográfica 3.0 (2026-11-05).
 
 Importación aislada: ``from ignis_fusion_terrestre import mostrar_fusion_terrestre``.
 No se conecta a sistemas operativos ni envía alertas externas. No reescribe el Maestro.
@@ -672,7 +672,7 @@ def _paleta(n:int) -> str:
 def _mapa_plotly(malla:pd.DataFrame, nasa:pd.DataFrame, bom:pd.DataFrame,
                   sin:pd.DataFrame, zona:str, ano:int|None,
                   ver_referencias:bool=True,ver_casos:bool=True,
-                  celdas_activas:set|None=None):
+                  celdas_activas:set|None=None, celda_seleccionada:tuple[int,int]|None=None):
     import plotly.graph_objects as go
     figura=go.Figure()
     geo=_contorno_uy()
@@ -700,6 +700,13 @@ def _mapa_plotly(malla:pd.DataFrame, nasa:pd.DataFrame, bom:pd.DataFrame,
             text=hover,hovertemplate='%{text}<extra></extra>',showlegend=False))
     else:
         figura.add_trace(go.Scatter(x=[],y=[],mode='markers',name='Celdas FIRMS',showlegend=False))
+    if celda_seleccionada is not None:
+        il,jo=celda_seleccionada
+        x0,x1=jo*PASO_GRADOS,(jo+1)*PASO_GRADOS
+        y0,y1=il*PASO_GRADOS,(il+1)*PASO_GRADOS
+        figura.add_trace(go.Scatter(x=[x0,x1,x1,x0,x0],y=[y0,y0,y1,y1,y0],
+                    mode='lines',line=dict(color='#ffe36f',width=3.7),
+                    hoverinfo='skip',showlegend=False,name='Cuadrícula seleccionada'))
     if ver_referencias:
         ref=[r for r in REFERENCIAS_CAMARAS
              if ZONAS[zona][0]<=r['lat']<=ZONAS[zona][1] and ZONAS[zona][2]<=r['lon']<=ZONAS[zona][3]]
@@ -831,6 +838,231 @@ def _leer_fuente(st, uploaded, categoria:str,prefijo:str) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+# --------------------------- PDF por celda -------------------------------
+def _mapa_estatico_para_pdf(malla: pd.DataFrame, celda: tuple[int, int],
+                           bom: pd.DataFrame, sin: pd.DataFrame) -> bytes:
+    """Una figura reproducible; el color de la cuadrícula viene solamente de FIRMS."""
+    import matplotlib
+    matplotlib.use('Agg')
+    from matplotlib.figure import Figure
+    from matplotlib.patches import Rectangle
+    from matplotlib.backends.backend_agg import FigureCanvasAgg
+
+    fig = Figure(figsize=(8, 4.4), facecolor='#09182b')
+    ax = fig.add_axes([0.07, 0.10, 0.88, 0.82], facecolor='#09182b')
+    geo = _contorno_uy()
+    if geo:
+        ax.fill([x for x, y in geo], [y for x, y in geo], color='#13263a', alpha=.9)
+        ax.plot([x for x, y in geo], [y for x, y in geo], c='#b9d8ed', linewidth=1.2)
+    for r in malla.itertuples():
+        ax.add_patch(Rectangle((r.ilon*PASO_GRADOS, r.ilat*PASO_GRADOS),
+                               PASO_GRADOS, PASO_GRADOS,
+                               facecolor=_paleta(int(r.anios)), edgecolor='#102237', linewidth=.3))
+    lat0, lon0 = celda[0]*PASO_GRADOS, celda[1]*PASO_GRADOS
+    ax.add_patch(Rectangle((lon0, lat0), PASO_GRADOS, PASO_GRADOS,
+                           facecolor='none', edgecolor='#ffe57b', linewidth=3))
+    for d, color, label in [(bom, '#ffba63', 'Bomberos/PAIF'),
+                             (sin, '#fb83d9', 'SINAE/MIRA')]:
+        if d is not None and not d.empty:
+            ax.scatter(d.lon, d.lat, c=color, s=27, marker='x', linewidth=1.2, label=label)
+    ax.set_xlim(-58.85, -53.05)
+    ax.set_ylim(-35.25, -29.90)
+    ax.set_aspect('equal', adjustable='box')
+    ax.tick_params(axis='both', colors='#c8e0ef', labelsize=7)
+    ax.grid(color='#253b55', alpha=.40)
+    for sp in ax.spines.values(): sp.set_color('#243e5b')
+    ax.set_xlabel('Longitud (WGS84)', color='#b7d1e6', fontsize=7)
+    ax.set_ylabel('Latitud (WGS84)', color='#b7d1e6', fontsize=7)
+    if ax.get_legend_handles_labels()[0]:
+        leg = ax.legend(facecolor='#183148', edgecolor='#49617a', fontsize=7,
+                        loc='lower right')
+        for txt in leg.get_texts(): txt.set_color('#ffffff')
+    out=io.BytesIO()
+    FigureCanvasAgg(fig).print_png(out)
+    return out.getvalue()
+
+
+def generar_informe_pdf_celda(malla: pd.DataFrame, celda: tuple[int,int],
+                              nasa_hist: pd.DataFrame, nasa_periodo: pd.DataFrame,
+                              bom_celda: pd.DataFrame, sin_celda: pd.DataFrame,
+                              asociaciones: pd.DataFrame, casos: list,
+                              ano_filtro: int|None, umbral_km: float,
+                              umbral_h: float, dias: int,
+                              bom_mapeado: pd.DataFrame|None=None,
+                              sin_mapeado: pd.DataFrame|None=None) -> bytes:
+    """Informe local; sin datos inventados y con procedencia explícita."""
+    from reportlab.platypus import (SimpleDocTemplate, Paragraph, Spacer,
+                                    Table, TableStyle, Image as RLImage, PageBreak)
+    from reportlab.lib import colors as C
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import cm
+    from reportlab.lib.enums import TA_CENTER
+    from reportlab.lib.utils import ImageReader
+
+    LAT0, LAT1 = celda[0]*PASO_GRADOS, (celda[0]+1)*PASO_GRADOS
+    LON0, LON1 = celda[1]*PASO_GRADOS, (celda[1]+1)*PASO_GRADOS
+    zona_texto=f'{LAT0:.2f} a {LAT1:.2f} S / {LON0:.2f} a {LON1:.2f} O'
+    partes=[]
+    estilo=getSampleStyleSheet()
+    estilo.add(ParagraphStyle(name='IGNISTitle', parent=estilo['Heading1'], fontName='Helvetica-Bold',
+                              textColor=C.HexColor('#14283e'), fontSize=16, spaceAfter=8, leading=20))
+    estilo.add(ParagraphStyle(name='IGNISH2', parent=estilo['Heading2'],fontName='Helvetica-Bold',
+                              textColor=C.HexColor('#116b83'),fontSize=10.3, spaceBefore=10,spaceAfter=5))
+    estilo.add(ParagraphStyle(name='IGNISSmall',parent=estilo['Normal'],fontSize=8,leading=11,spaceAfter=6))
+    estilo.add(ParagraphStyle(name='IGNISNote',parent=estilo['Normal'],fontSize=7.3,leading=9,
+                              textColor=C.HexColor('#5a6675'),spaceAfter=5))
+    estilo.add(ParagraphStyle(name='IGNISCell',parent=estilo['Normal'],fontSize=7.1,leading=9))
+    buf=io.BytesIO()
+    doc=SimpleDocTemplate(buf,pagesize=A4,rightMargin=1.55*cm,leftMargin=1.55*cm,
+                          topMargin=2.55*cm,bottomMargin=1.75*cm, title='IGNIS - Análisis exploratorio de cuadrícula')
+
+    def pagina(c, doc_):
+        w,h=A4
+        c.setFillColor(C.HexColor('#10243c'))
+        c.rect(0,h-1.75*cm,w,1.75*cm,fill=1,stroke=0)
+        base=Path(__file__).resolve().parent
+        logo_nasa=base/'logo_nasa_informe.png'
+        if logo_nasa.exists():
+            try: c.drawImage(ImageReader(str(logo_nasa)),w-3.55*cm,h-1.52*cm,
+                             width=1.5*cm,height=1.22*cm,preserveAspectRatio=True,mask='auto')
+            except (OSError,ValueError): pass
+        logo_sinae=base/'logo_sinae.png'
+        if logo_sinae.exists():
+            try:c.drawImage(ImageReader(str(logo_sinae)),w-5.10*cm,h-1.48*cm,
+                            width=1.4*cm,height=1.12*cm,preserveAspectRatio=True,mask='auto')
+            except (OSError,ValueError):pass
+        else:
+            # El nombre textual identifica la fuente; NO es un logo oficial inventado.
+            c.setFillColor(C.HexColor('#70cddb'));c.setFont('Helvetica-Bold',10)
+            c.drawRightString(w-3.85*cm,h-1.00*cm,'SINAE / MIRA')
+        c.setFillColor(C.white);c.setFont('Helvetica-Bold',12)
+        c.drawString(1.55*cm,h-.86*cm,'IGNIS UY | FUSIÓN CIELO - TIERRA')
+        c.setFillColor(C.HexColor('#b3dbf0'));c.setFont('Helvetica',8)
+        c.drawString(1.55*cm,h-1.24*cm,'Informe exploratorio de una celda seleccionada')
+        c.setStrokeColor(C.HexColor('#b6c7d9'));c.line(1.55*cm,1.36*cm,w-1.55*cm,1.36*cm)
+        c.setFillColor(C.HexColor('#586678'));c.setFont('Helvetica',7)
+        c.drawString(1.55*cm,1.05*cm,
+                     'Los nombres y emblemas identifican fuentes; no implican validación ni aval institucional.')
+        c.drawRightString(w-1.55*cm,1.05*cm,f'Página {doc_.page}')
+
+    partes.append(Paragraph('Ficha de observaciones y evidencia asociada',estilo['IGNISTitle']))
+    periodo='Histórico completo' if ano_filtro is None else str(ano_filtro)
+    partes.append(Paragraph(f'<b>Celda de 0,2 grados:</b> {zona_texto} &nbsp; | &nbsp; '
+                             f'<b>Período de visualización:</b> {periodo}',estilo['IGNISSmall']))
+    simulado=bool((not bom_celda.empty and bom_celda.es_simulado.any()) or
+                  (not sin_celda.empty and sin_celda.es_simulado.any()) or
+                  (not asociaciones.empty and asociaciones.simulado.astype(str).str.startswith('SÍ').any()))
+    if simulado:
+        partes.append(Paragraph('<b>DEMOSTRACIÓN CON DATOS SINTÉTICOS.</b> '
+                                 'La fusión observada no confirma detecciones terrestres reales.',estilo['IGNISSmall']))
+    partes.append(Paragraph('1. Resumen de la celda',estilo['IGNISH2']))
+    def n(x):return f'{int(x):,}'.replace(',','.')
+    resumen_data=[['Observaciones FIRMS en el período','Años con señal FIRMS en el histórico','Días con registro FIRMS'],
+                  [n(len(nasa_periodo)),n(nasa_hist.fecha_utc.dt.year.nunique() if not nasa_hist.empty else 0),
+                   n(nasa_hist.fecha_utc.dt.date.nunique() if not nasa_hist.empty else 0)]]
+    t=Table(resumen_data,colWidths=[5.9*cm]*3,rowHeights=[.67*cm,.78*cm])
+    t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,-1),C.HexColor('#e9f3fa')),
+                           ('TEXTCOLOR',(0,0),(-1,0),C.HexColor('#3c5265')),
+                           ('TEXTCOLOR',(0,1),(-1,1),C.HexColor('#0a617e')),
+                           ('FONTNAME',(0,1),(-1,1),'Helvetica-Bold'),
+                           ('FONTSIZE',(0,0),(-1,0),8),('FONTSIZE',(0,1),(-1,1),16),
+                           ('ALIGN',(0,0),(-1,-1),'CENTER'),('VALIGN',(0,0),(-1,-1),'MIDDLE'),
+                           ('BOX',(0,0),(-1,-1),.4,C.HexColor('#a8c0d1'))]))
+    partes.append(t);partes.append(Spacer(1,9))
+    partes.append(Paragraph('2. Mapa histórico y ubicación seleccionada',estilo['IGNISH2']))
+    graf=_mapa_estatico_para_pdf(malla,celda,bom_mapeado if bom_mapeado is not None else bom_celda,
+                                 sin_mapeado if sin_mapeado is not None else sin_celda)
+    partes.append(RLImage(io.BytesIO(graf),width=17.6*cm,height=9.65*cm))
+    partes.append(Paragraph('Colores = años calendario con al menos una anomalía térmica en la celda. '
+                             'Recuentos no corregidos por cobertura, revisita, nubosidad ni diferencias MODIS/VIIRS. '
+                             'No representan cantidad de incendios ni superficies quemadas.',estilo['IGNISNote']))
+    partes.append(PageBreak())
+    partes.append(Paragraph('3. Observaciones cargadas y contraste',estilo['IGNISTitle']))
+    def fuente_fila(nombre,df):
+        if df is None or df.empty:return [nombre,'0','Sin registros cargados para la celda','—']
+        yini,yfin=int(df.fecha_utc.dt.year.min()),int(df.fecha_utc.dt.year.max())
+        return [nombre,n(len(df)),f'{yini}–{yfin}', 'Sintética' if df.es_simulado.any() else 'Origen declarado']
+    rows=[['Fuente','Eventos en celda','Años de los eventos','Condición']]
+    rows.extend([fuente_fila('Bomberos / PAIF',bom_celda),fuente_fila('SINAE / MIRA',sin_celda)])
+    tt=Table([[Paragraph(str(x),estilo['IGNISCell']) for x in row] for row in rows],
+              colWidths=[4.0*cm,2.9*cm,6.1*cm,4.7*cm],repeatRows=1)
+    tt.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),C.HexColor('#dceaf2')),
+                            ('GRID',(0,0),(-1,-1),.3,C.HexColor('#b6cedb')),
+                            ('VALIGN',(0,0),(-1,-1),'TOP'),('LEFTPADDING',(0,0),(-1,-1),7),
+                            ('TOPPADDING',(0,0),(-1,-1),7),('BOTTOMPADDING',(0,0),(-1,-1),7)]))
+    partes.append(tt);partes.append(Spacer(1,7))
+    # Coincidencias en la celda, no resultados de todo el país.
+    coincidencias=asociaciones[asociaciones.n_firms.gt(0)] if not asociaciones.empty else pd.DataFrame()
+    if coincidencias.empty:
+        estado='No se han obtenido coincidencias satelital-terrestres en esta selección con los datos cargados.'
+    else:
+        estado=f'{len(coincidencias)} evento(s) con proximidad espacial y temporal FIRMS en el filtro elegido.'
+    partes.append(Paragraph(estado,estilo['IGNISSmall']))
+    if not asociaciones.empty:
+        tabl=[['Fecha evento (UTC)','Fuente(s)','FIRMS cerca','Resultado exploratorio']]
+        for r in asociaciones.head(12).itertuples():
+            tabl.append([str(r.fecha_utc)[:16],str(r.fuentes)[:38],str(r.n_firms),str(r.resultado)[:80]])
+        # Wrap in paragraphs to preserve readability.
+        t=Table([[Paragraph(escape(str(x)),estilo['IGNISCell']) for x in row] for row in tabl],
+                 colWidths=[3.2*cm,5.05*cm,2.0*cm,7.45*cm],repeatRows=1)
+        t.setStyle(TableStyle([('BACKGROUND',(0,0),(-1,0),C.HexColor('#dceaf2')),
+                               ('ROWBACKGROUNDS',(0,1),(-1,-1),[C.white,C.HexColor('#f4f9fc')]),
+                               ('GRID',(0,0),(-1,-1),.25,C.HexColor('#d0dee9')),
+                               ('VALIGN',(0,0),(-1,-1),'TOP')]))
+        partes.append(t)
+        if len(asociaciones)>12:
+            partes.append(Paragraph(f'Informe abreviado: se muestran 12 de {len(asociaciones)} eventos. '
+                                     'Utilizá el CSV de resultados para el detalle completo.',estilo['IGNISNote']))
+    partes.append(Paragraph('4. Histórico anual de observaciones FIRMS',estilo['IGNISH2']))
+    if not nasa_hist.empty:
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_agg import FigureCanvasAgg
+        anual=nasa_hist.groupby(nasa_hist.fecha_utc.dt.year).size().sort_index()
+        ff=Figure(figsize=(8.1,2.05),facecolor='#ffffff')
+        aa=ff.add_axes([.075,.26,.88,.64]); aa.set_facecolor('#ffffff')
+        aa.bar(anual.index.astype(int),anual.to_numpy(),color='#32a7c5',width=.77)
+        aa.set_xlim(min(anual.index)-.7,max(anual.index)+.7)
+        aa.tick_params(labelsize=7,colors='#364f62')
+        aa.set_xticks(anual.index[::2].astype(int))
+        aa.grid(axis='y',alpha=.2);aa.set_axisbelow(True)
+        for sp in ('top','right'):aa.spines[sp].set_visible(False)
+        aa.set_ylabel('Observaciones',fontsize=7)
+        image_buffer=io.BytesIO()
+        FigureCanvasAgg(ff).print_png(image_buffer)
+        partes.append(RLImage(io.BytesIO(image_buffer.getvalue()),width=17.3*cm,height=4.37*cm))
+        partes.append(Paragraph('La evolución del recuento no puede interpretarse como tendencia '
+                                'de incidencia sin normalizar cambios de sensores y cobertura.',estilo['IGNISNote']))
+    partes.append(Paragraph('5. Incendios documentados próximos',estilo['IGNISH2']))
+    if casos:
+        for caso,dist in casos:
+            partes.append(Paragraph(f'<b>{escape(caso["nombre"])}</b> – localidad a aproximadamente {dist:.1f} km '
+                                     f'del centro de la celda; consultar fuente oficial y fechas del episodio. '
+                                     'La ubicación es referencial, NO el punto de ignición.',estilo['IGNISSmall']))
+    else:
+        partes.append(Paragraph('Sin caso incorporado a la biblioteca limitada de IGNIS para esta celda. '
+                                 'No equivale a ausencia de incendios ni de registros de otras instituciones.',estilo['IGNISSmall']))
+    partes.append(Paragraph('6. Criterio, cobertura y limitaciones',estilo['IGNISH2']))
+    notas=[
+        f'Asociación espacial: {umbral_km:g} km. Si ambos registros incluyen hora: hasta {umbral_h:g} horas; '
+        f'si falta hora: coincidencia de fecha local con margen de {dias} día(s).',
+        'NASA FIRMS detecta anomalías térmicas, no incendios necesariamente confirmados. '
+        'Una coincidencia entre fuentes no demuestra independencia ni una detección anticipada.',
+        'El CSV abierto del SINAE/MIRA publicado en 2022 cubre marzo de 2018 a junio de 2022. '
+        'Los registros de otros años deben aportarse y verificarse por separado.',
+        'Las cámaras costeras referenciadas son localidades aproximadas, NO posiciones ni cobertura de torres verificadas. '
+        'No se describen posiciones individuales de la red PAIF.',
+        'No es un sistema de alarma o despacho operativo. Los archivos sintéticos NO se usan como evidencia real.'
+    ]
+    for nota in notas:partes.append(Paragraph('• '+escape(nota),estilo['IGNISNote']))
+    partes.append(Paragraph('<b>Fuentes públicas:</b> NASA FIRMS; '
+                             f'<link href="{FUENTE_MIRA}" color="blue">SINAE/MIRA (conjunto 2018–2022)</link>; '
+                             f'<link href="{FUENTE_CAMARAS}" color="blue">Ministerio del Interior (Bomberos)</link>.',estilo['IGNISNote']))
+    doc.build(partes,onFirstPage=pagina,onLaterPages=pagina)
+    return buf.getvalue()
+
+
+
 def mostrar_fusion_terrestre(maestro:pd.DataFrame|None=None) -> None:
     """Pestaña única para la integración del tridente y mapa exploratorio seleccionable.
 
@@ -879,7 +1111,9 @@ def mostrar_fusion_terrestre(maestro:pd.DataFrame|None=None) -> None:
             st.download_button('Descargar CSV sintético para ensayar',tabla_ejemplo('sinae'),
                                file_name='IGNIS_SINAE_DEMO_SIMULADO.csv',mime='text/csv',
                                key='fus_v2_plantilla_sinae')
-            st.markdown(f'[Dataset oficial histórico SINAE (2018–2022)]({FUENTE_MIRA})')
+            st.markdown(f'[CSV oficial SINAE/MIRA (marzo 2018 – junio 2022, publicado en 2022)]({FUENTE_MIRA})')
+            st.caption('Para 2023–2026 es necesario importar registros posteriores autorizados: '
+                       'el CSV público de esta página no cubre esos años.')
         b=_leer_fuente(st,b_file,'BOMBEROS_PAIF','b')
         s=_leer_fuente(st,s_file,'SINAE_MIRA','s')
         demo=st.checkbox('Añadir demostración con eventos terrestres SINTÉTICOS cerca de un punto NASA',
@@ -925,7 +1159,11 @@ def mostrar_fusion_terrestre(maestro:pd.DataFrame|None=None) -> None:
     st.caption('Los colores representan AÑOS con al menos una detección térmica por celda, '
                'no cantidad de incendios. Los archivos del Maestro no cubren necesariamente todos los meses. '
                'No se corrige por diferencias instrumentales, nubosidad ni revisitas.')
-    fig=_mapa_plotly(visible,periodo,b_vista,s_vista,zona,ano,ver_torres,ver_casos,activas)
+    # Primero se dibuja lo seleccionado en la sesión; al pulsar otra celda,
+    # Plotly provoca un rerun y el reporte sigue el nuevo punto sin lat/lon manual.
+    guardada=st.session_state.get('fus_v2_celda')
+    actual=guardada if guardada in set(zip(visible.ilat.astype(int),visible.ilon.astype(int))) else None
+    fig=_mapa_plotly(visible,periodo,b_vista,s_vista,zona,ano,ver_torres,ver_casos,activas,actual)
     try:
         seleccion=st.plotly_chart(fig,use_container_width=True,on_select='rerun',
                                   selection_mode='points',key='fus_v2_click_'+str(zona)+str(ano))
@@ -954,7 +1192,10 @@ def mostrar_fusion_terrestre(maestro:pd.DataFrame|None=None) -> None:
         st.session_state[key]=clicked
     if key not in st.session_state or st.session_state[key] not in opciones:
         st.session_state[key]=opciones[0]
-    seleccion_celda=st.selectbox('Cuadrícula para inspeccionar',opciones,
+    st.success('📍 CUADRÍCULA SELECCIONADA: ' + _descripcion_celda(visible, st.session_state[key]) +
+               ' · Hacé clic en otra casilla coloreada para actualizar todo el análisis.')
+    with st.expander('Elegir otra cuadrícula mediante lista (alternativa al clic)'):
+        seleccion_celda=st.selectbox('Cuadrícula para inspeccionar',opciones,
                   format_func=lambda k:_descripcion_celda(visible,k),key=key)
 
     lat0,lat1=seleccion_celda[0]*PASO_GRADOS,(seleccion_celda[0]+1)*PASO_GRADOS
@@ -988,6 +1229,27 @@ def mostrar_fusion_terrestre(maestro:pd.DataFrame|None=None) -> None:
             st.dataframe(instrumentos,use_container_width=True,hide_index=True)
     else:
         st.info('No hay datos satelitales en esta cuadrícula para el período activo.')
+    # Cruce anual solo descriptivo: una fila por año, nunca significa que hubo un incendio confirmado.
+    hist_anual=(t_hist.groupby(t_hist.fecha_utc.dt.year).size().rename('NASA FIRMS').reset_index()
+                if not t_hist.empty else pd.DataFrame(columns=['Año','NASA FIRMS']))
+    if not hist_anual.empty: hist_anual.columns=['Año','NASA FIRMS']
+    if not bom_cell.empty:
+        hist_anual=hist_anual.merge(bom_cell.assign(Año=bom_cell.fecha_utc.dt.year).groupby('Año').size()
+                      .rename('Bomberos/PAIF cargados').rename_axis('Año').reset_index(),
+                      how='outer',on='Año')
+    if not sin_cell.empty:
+        hist_anual=hist_anual.merge(sin_cell.assign(Año=sin_cell.fecha_utc.dt.year).groupby('Año').size()
+                      .rename('SINAE/MIRA cargados').rename_axis('Año').reset_index(),
+                      how='outer',on='Año')
+    if not hist_anual.empty:
+        hist_anual=hist_anual.fillna(0).sort_values('Año')
+        for col in hist_anual.columns:
+            hist_anual[col]=hist_anual[col].astype(int)
+        with st.expander('📅 Comparar años: NASA vs. registros institucionales cargados',expanded=False):
+            st.dataframe(hist_anual,use_container_width=True,hide_index=True)
+            st.caption('Estos recuentos son de fuentes y resoluciones distintas. '
+                       'Cero en SINAE o Bomberos significa cero registros IMPORTADOS a IGNIS en esta celda, '
+                       'no que no hayan ocurrido incendios. Los datos MIRA abiertos cubren solo 2018–2022.')
     st.markdown('**Antecedentes documentados cercanos (referencias, no verificación de cada píxel)**')
     centroid=(lat0+lat1)/2,(lon0+lon1)/2
     casos=[]
@@ -1073,6 +1335,42 @@ def mostrar_fusion_terrestre(maestro:pd.DataFrame|None=None) -> None:
         'casos_documentados_cercanos':len(casos),
         'es_informe_operativo':False,
     }])
+    # Lectura de la celda: distingue evidencia aportada de ausencia de evidencia.
+    st.markdown('#### 🔗 Resultado para la cuadrícula seleccionada')
+    if not bom_cell.empty or not sin_cell.empty:
+        eventos_tabla=[]
+        for nombre,df in [('Bomberos / PAIF',bom_cell),('SINAE / MIRA',sin_cell)]:
+            for r in df.itertuples():
+                eventos_tabla.append({'Procedencia':nombre,'Fecha UTC':str(r.fecha_utc)[:19],
+                    'ID':str(r.id)[:50],'Tipo informado':str(r.detalle)[:100],
+                    'Estado declarado':str(r.estado_origen)[:100],
+                    'Condición':'SINTÉTICO' if bool(r.es_simulado) else 'Declarado por archivo'})
+        if eventos_tabla:
+            st.dataframe(pd.DataFrame(eventos_tabla),use_container_width=True,hide_index=True)
+    else:
+        st.info('No se importaron registros de Bomberos/PAIF ni SINAE/MIRA dentro de '
+                'esta cuadrícula y período. Esto NO implica que no haya habido incendios.')
+    if not salida_local.empty and salida_local.n_firms.gt(0).any():
+        st.success('Hay al menos un evento aportado con observación FIRMS cercana en la '
+                   'ventana configurada. Es una coincidencia para revisión, NO confirmación de incendio.')
+    elif not bom_cell.empty or not sin_cell.empty:
+        st.warning('Hay eventos importados, pero no se comprobó una coincidencia FIRMS '
+                   'en esta celda con los umbrales elegidos.')
+    if not salida_local.empty and salida_local.simulado.astype(str).str.startswith('SÍ').any():
+        st.warning('RESULTADO DEMOSTRATIVO: incluye datos sintéticos, '
+                   'no confirma observaciones reales de Bomberos ni SINAE.')
+    try:
+        pdf_celda=generar_informe_pdf_celda(
+            visible,seleccion_celda,t_hist,t_per,bom_cell,sin_cell,salida_local,
+            casos,ano,float(radio),float(horas),int(dias),b_vista,s_vista)
+        st.download_button('📄 Descargar INFORME PDF de esta cuadrícula',pdf_celda,
+            file_name=f'IGNIS_informe_celda_{abs(int(seleccion_celda[0]))}_{abs(int(seleccion_celda[1]))}_'
+                      f'{ano or "historico"}.pdf',
+            mime='application/pdf',key='fus_v3_pdf_celda')
+        st.caption('PDF de análisis exploratorio con mapa, historial NASA, registros institucionales '
+                   'aportados y fuentes. No equivale a un reporte de incidente confirmado.')
+    except Exception as exc:
+        st.warning(f'No se pudo construir el PDF de esta selección: {type(exc).__name__}: {exc}')
     st.download_button('⬇️ Descargar ficha de la celda (CSV)',
         resumen.to_csv(index=False).encode('utf-8-sig'),
         file_name='IGNIS_CELDA_ELEGIDA_EXPLORATORIA.csv',mime='text/csv',key='fus_v2_ficha')
