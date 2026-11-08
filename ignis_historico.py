@@ -341,17 +341,17 @@ def _build_simulated_satellite_path(satellite_name, steps=80):
 
 
 def render_space_tracker(datos):
-    st.subheader('🛰️ SPACE / SATELLITE TRACKER')
-    st.caption('Illustrative orbital display only. The interface deliberately does not show live satellite ephemerides or real-time positions. It is a conceptual Earth observation panel for the IGNIS UY workflow.')
+    st.subheader('🛰️ SPACE / SATÉLITE TRACKER')
+    st.caption('Visualización orbital ilustrativa únicamente. La interfaz no muestra efemérides en tiempo real ni posiciones satelitales en vivo. Es un panel conceptual de observación terrestre para el flujo de IGNIS UY.')
     if datos.empty:
-        st.info('Load historical data first to enable the observation coverage and contextual summary.')
+        st.info('Primero cargá datos históricos para activar la cobertura observacional y el resumen contextual.')
         return
-    selected = st.selectbox('Selected satellite', options=[item['name'] for item in SATELLITE_REFERENCE], index=0)
+    selected = st.selectbox('Satélite seleccionado', options=[item['name'] for item in SATELLITE_REFERENCE], index=0)
     sat = next(item for item in SATELLITE_REFERENCE if item['name'] == selected)
-    region = st.selectbox('Focus region', ['Uruguay', 'South America', 'Global'], index=0)
+    region = st.selectbox('Región de enfoque', ['Uruguay', 'Sudamérica', 'Global'], index=0)
     area = {
         'Uruguay': {'lat': [-35.5, -29.7], 'lon': [-58.8, -52.8]},
-        'South America': {'lat': [-55, 15], 'lon': [-82, -30]},
+        'Sudamérica': {'lat': [-55, 15], 'lon': [-82, -30]},
         'Global': {'lat': [-90, 90], 'lon': [-180, 180]},
     }[region]
     orbit = _build_simulated_satellite_path(selected)
@@ -359,16 +359,16 @@ def render_space_tracker(datos):
     fig.add_trace(go.Scattergeo(
         lon=[-58.5, -53.2], lat=[-35.5, -29.7], mode='lines', fill='toself',
         fillcolor='rgba(77, 119, 255, 0.16)', line=dict(color='#7ec8ff', width=1.5),
-        name='Uruguay observation box', hoverinfo='skip'
+        name='Caja de observación de Uruguay', hoverinfo='skip'
     ))
     fig.add_trace(go.Scattergeo(
         lon=orbit['longitude'], lat=orbit['latitude'], mode='lines', line=dict(color='#8fdcff', width=2),
-        name=f'{selected} orbit (illustrative)'
+        name=f'{selected} órbita (ilustrativa)'
     ))
     fig.add_trace(go.Scattergeo(
         lon=orbit['longitude'][::10], lat=orbit['latitude'][::10], mode='markers',
         marker=dict(size=8, color='#ffc857', symbol='circle'),
-        name='Illustrative marker'
+        name='Marcador ilustrativo'
     ))
     fig.update_geos(
         projection_type='orthographic', showocean=True, oceancolor='#020b17', showland=True,
@@ -380,27 +380,27 @@ def render_space_tracker(datos):
         plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', y=1.08, x=0)
     )
     st.plotly_chart(fig, use_container_width=True)
-    st.caption(f'Observations currently in memory: {len(datos):,} records. The current panel does not convert these into live counts, and it does not claim real-time satellite positions.')
+    st.caption(f'Observaciones actualmente en memoria: {len(datos):,} registros. Este panel no convierte estos datos en conteos en vivo ni afirma posiciones satelitales en tiempo real.')
     col1, col2 = st.columns([1.2, 2.0])
     with col1:
         st.markdown(f"""
         <div style='background:linear-gradient(135deg,rgba(19,66,112,.55),rgba(26,34,67,.86));border:1px solid #7ca7ff;border-radius:18px;padding:16px 18px;min-height:210px'>
-            <div style='color:#a9c7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Selected satellite</div>
+            <div style='color:#a9c7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Satélite seleccionado</div>
             <div style='font-size:1.7rem;font-weight:700;color:#eff6ff;margin:10px 0 5px'>{sat['name']}</div>
             <div style='color:#cfdfff;margin-bottom:10px'>{sat['sensor']}</div>
-            <div style='color:#9bc7ff;margin-bottom:4px'>Instrument: {sat['instrument']}</div>
-            <div style='color:#9bc7ff;margin-bottom:4px'>Orbit: {sat['orbit']}</div>
-            <div style='color:#9bc7ff'>Source: {sat['source']}</div>
+            <div style='color:#9bc7ff;margin-bottom:4px'>Instrumento: {sat['instrument']}</div>
+            <div style='color:#9bc7ff;margin-bottom:4px'>Órbita: {sat['orbit']}</div>
+            <div style='color:#9bc7ff'>Fuente: {sat['source']}</div>
         </div>
         """, unsafe_allow_html=True)
     with col2:
         st.markdown(f"""
         <div style='background:linear-gradient(135deg,rgba(45,23,71,.65),rgba(16,26,53,.86));border:1px solid #d2a8ff;border-radius:18px;padding:16px 18px;min-height:210px'>
-            <div style='color:#d5b7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Satellite description</div>
+            <div style='color:#d5b7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Descripción del satélite</div>
             <p style='color:#edf3ff;margin:12px 0 0;line-height:1.6'>{sat['description']}</p>
         </div>
         """, unsafe_allow_html=True)
-    st.caption('The orbit and marker are intentionally labelled as conceptual. Real orbital data should be sourced from official ephemeris providers and refreshed on a documented cadence if the project later adds live tracking.')
+    st.caption('La órbita y el marcador están etiquetados como conceptuales. Si más adelante se agrega seguimiento en vivo, los datos reales deben provenir de proveedores oficiales de efemérides y actualizarse con una frecuencia documentada.')
 
 
 def _ask_ignis_answer(datos, question):
@@ -461,23 +461,23 @@ def _ask_ignis_answer(datos, question):
 
 def render_ask_ignis(datos):
     st.subheader('🤖 ASK IGNIS')
-    st.caption('Grounded data assistant. It answers from the loaded IGNIS dataset and clearly distinguishes observation records from modeled or inferred statistics.')
+    st.caption('Asistente basado en datos reales. Responde a partir del conjunto cargado de IGNIS y distingue claramente entre registros observados, estimaciones y datos no disponibles.')
     if 'ignis_chat_history' not in st.session_state:
         st.session_state['ignis_chat_history'] = []
     suggestion_questions = [
-        'How many fire hotspots were detected in Uruguay this month?',
-        'Compare MODIS and VIIRS observations.',
-        'What were the most active periods in the historical dataset?',
-        'What is the distribution of Fire Radiative Power (FRP)?',
+        '¿Cuántos hotspots de fuego se detectaron en Uruguay este mes?',
+        'Compara observaciones MODIS y VIIRS.',
+        '¿Cuáles fueron los períodos más activos del historial?',
+        '¿Cuál es la distribución del Fire Radiative Power (FRP)?',
     ]
-    st.write('Suggested questions')
+    st.write('Preguntas sugeridas')
     suggestion_cols = st.columns(len(suggestion_questions))
     for idx, question in enumerate(suggestion_questions):
         with suggestion_cols[idx]:
             if st.button(question, key=f'ignis_question_{idx}', use_container_width=True):
                 st.session_state['ignis_draft_question'] = question
-    user_question = st.text_input('Ask IGNIS about the current data', value=st.session_state.get('ignis_draft_question', ''), key='ignis_draft_question_input')
-    if st.button('Send', type='primary'):
+    user_question = st.text_input('Pregunta a IGNIS sobre los datos actuales', value=st.session_state.get('ignis_draft_question', ''), key='ignis_draft_question_input')
+    if st.button('Enviar', type='primary'):
         if user_question.strip():
             st.session_state['ignis_chat_history'].append({'role':'user','content':user_question})
             result = _ask_ignis_answer(datos, user_question)
@@ -490,12 +490,12 @@ def render_ask_ignis(datos):
             with st.chat_message('assistant'):
                 st.write(message['content'])
                 if message.get('sources'):
-                    st.caption('Sources: ' + ', '.join(message['sources']))
+                    st.caption('Fuentes: ' + ', '.join(message['sources']))
                 chart = message.get('chart')
                 if chart is not None and not chart.empty:
                     st.dataframe(chart, use_container_width=True, hide_index=True)
     if not st.session_state['ignis_chat_history']:
-        st.info('Ask a question about the loaded fire dataset. The assistant will only answer from the current archive and will explicitly flag missing information.')
+        st.info('Haz una pregunta sobre el conjunto de incendios cargado. El asistente solo responderá con el archivo actual y señalará explícitamente cuando la información no esté disponible.')
 
 
 def asset_uri(path, mime='image/png'):
