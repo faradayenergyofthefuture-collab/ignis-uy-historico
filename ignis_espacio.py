@@ -229,13 +229,13 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             background: #020812;
           }}
           .cesium-widget-credits {{ display: none; }}
+          .cesium-widget {{ border-radius: 0; }}
         </style>
       </head>
       <body>
         <div id="cesiumContainer"></div>
         <script>
           const payload = {payload};
-          Cesium.Ion.defaultAccessToken = '';
           const viewer = new Cesium.Viewer('cesiumContainer', {{
             animation: false,
             baseLayerPicker: false,
@@ -248,30 +248,18 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             timeline: false,
             selectionIndicator: false,
             imageryProvider: false,
-            skyAtmosphere: new Cesium.SkyAtmosphere({{ brightnessShift: 0.18, saturationShift: 0.30 }}),
-            skyBox: new Cesium.SkyBox({{ sources: {{
-              positiveX: 'https://raw.githubusercontent.com/AnalyticalGraphicsInc/cesium/master/Source/Assets/Textures/SkyBox/tycho2t3_80_px.jpg',
-              negativeX: 'https://raw.githubusercontent.com/AnalyticalGraphicsInc/cesium/master/Source/Assets/Textures/SkyBox/tycho2t3_80_mx.jpg',
-              positiveY: 'https://raw.githubusercontent.com/AnalyticalGraphicsInc/cesium/master/Source/Assets/Textures/SkyBox/tycho2t3_80_py.jpg',
-              negativeY: 'https://raw.githubusercontent.com/AnalyticalGraphicsInc/cesium/master/Source/Assets/Textures/SkyBox/tycho2t3_80_my.jpg',
-              positiveZ: 'https://raw.githubusercontent.com/AnalyticalGraphicsInc/cesium/master/Source/Assets/Textures/SkyBox/tycho2t3_80_pz.jpg',
-              negativeZ: 'https://raw.githubusercontent.com/AnalyticalGraphicsInc/cesium/master/Source/Assets/Textures/SkyBox/tycho2t3_80_mz.jpg'
-            }} }}),
+            terrainProvider: new Cesium.EllipsoidTerrainProvider(),
+            skyAtmosphere: new Cesium.SkyAtmosphere({{ brightnessShift: 0.2, saturationShift: 0.35 }}),
             globe: {{
               enableLighting: true,
-              terrainProvider: new Cesium.EllipsoidTerrainProvider(),
               show: true,
+              baseColor: Cesium.Color.fromCssColorString('#051827')
             }}
           }});
 
           viewer.scene.backgroundColor = Cesium.Color.BLACK;
           viewer.scene.globe.enableLighting = true;
           viewer.scene.globe.show = true;
-
-          const worldImagery = Cesium.ImageryLayer.fromProvider(new Cesium.ArcGisMapServerImageryProvider({{
-            url: 'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-          }}));
-          viewer.imageryLayers.add(worldImagery);
 
           const uruguayOutline = [
             -58.4, -34.9,
@@ -287,7 +275,7 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             -58.4, -34.9,
           ];
 
-          viewer.entities.add({
+          viewer.entities.add({{
             polygon: {{
               hierarchy: Cesium.Cartesian3.fromDegreesArray(uruguayOutline),
               material: Cesium.Color.fromCssColorString('#3dd9ff').withAlpha(0.12),
@@ -296,7 +284,7 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
               outlineWidth: 2,
               perPositionHeight: false,
             }}
-          });
+          }});
 
           viewer.entities.add({{ position: Cesium.Cartesian3.fromDegrees(-56.0, -32.5), label: {{ text: 'Uruguay', font: '18px sans-serif', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 1, style: Cesium.LabelStyle.FILL_AND_OUTLINE }}}});
           viewer.entities.add({{ position: Cesium.Cartesian3.fromDegrees(-58.0, -18.0), label: {{ text: 'Sudamérica', font: '16px sans-serif', fillColor: Cesium.Color.WHITE.withAlpha(0.8), outlineColor: Cesium.Color.BLACK, outlineWidth: 1, style: Cesium.LabelStyle.FILL_AND_OUTLINE }}}});
@@ -324,7 +312,7 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
               if (!showSatellites) return;
               const position = sat.positions && sat.positions.length ? sat.positions[0] : null;
               if (position) {{
-                const entity = viewer.entities.add({{
+                viewer.entities.add({{
                   position: Cesium.Cartesian3.fromDegrees(position.lon, position.lat, Math.max(position.alt_km || 700, 0) * 1000),
                   label: {{
                     text: sat.name,
@@ -336,7 +324,6 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
                     pixelOffset: new Cesium.Cartesian2(0, -20)
                   }}
                 }});
-                entity.name = sat.name;
               }}
 
               if (showOrbits && sat.positions && sat.positions.length > 1) {{
