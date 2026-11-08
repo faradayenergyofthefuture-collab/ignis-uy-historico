@@ -518,6 +518,13 @@ with st.sidebar:
     else:
         st.caption("Cargá un Maestro IGNIS o ZIP/CSV en Carga de datos.")
     st.divider()
+    st.caption("RECURSOS OFICIALES")
+    st.link_button("✈️ Escuela Militar de Aeronáutica", "https://ema.fau.mil.uy/",
+                   use_container_width=True)
+    st.link_button("🚀 NASA Space Apps 2026", "https://www.spaceappschallenge.org/2026/",
+                   use_container_width=True)
+    st.caption("Enlaces externos informativos; no implican patrocinio o aval institucional.")
+    st.divider()
     st.caption("Las detecciones térmicas no son incendios confirmados.")
 
 if current_section==NAV_PAGES[1]:
@@ -593,6 +600,16 @@ if current_section == NAV_PAGES[0]:
                          use_container_width=True,key=f"ignis_intro_action_{i}"):
                 st.session_state["ignis_nav"]=target
                 st.rerun()
+    st.write("")
+    st.caption("CONOCÉ LAS INSTITUCIONES Y EL DESAFÍO")
+    ema_link, nasa_link = st.columns(2, gap="medium")
+    with ema_link:
+        st.link_button("✈️ Visitar la EMA", "https://ema.fau.mil.uy/",
+                       use_container_width=True)
+    with nasa_link:
+        st.link_button("🚀 Ver NASA Space Apps 2026", "https://www.spaceappschallenge.org/2026/",
+                       use_container_width=True)
+    st.caption("Son enlaces a sitios externos. IGNIS es un proyecto de investigación independiente.")
     st.write("")
     st.subheader("¿Qué podés investigar?")
     features=[
