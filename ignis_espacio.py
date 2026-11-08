@@ -170,7 +170,11 @@ def _build_hotspot_payload(frame: pd.DataFrame, selected_date: Optional[datetime
     hotspot_frame = frame.copy()
     hotspot_frame["fecha"] = pd.to_datetime(hotspot_frame["fecha"], errors="coerce", utc=True)
     if selected_date is not None:
-        hotspot_frame = hotspot_frame[hotspot_frame["fecha"].dt.date == selected_date.date()]
+        if hasattr(selected_date, "date"):
+            selected_day = selected_date.date()
+        else:
+            selected_day = pd.Timestamp(selected_date).date()
+        hotspot_frame = hotspot_frame[hotspot_frame["fecha"].dt.date == selected_day]
     if satellite_filter and satellite_filter != "Todos":
         hotspot_frame = hotspot_frame[hotspot_frame["satellite"].str.contains(satellite_filter, case=False, na=False)]
     hotspot_frame = hotspot_frame.sort_values("fecha").reset_index(drop=True)
@@ -396,7 +400,10 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
         return
 
     date_options = sorted(pd.to_datetime(frame["fecha"], utc=True).dt.date.unique())
-    selected_date = st.select_slider("Fecha focal", options=date_options, value=date_options[-1] if date_options else datetime.utcnow().date(), key="ignis_space_date")
+    if not date_options:
+        st.warning("No hay fechas válidas en el conjunto cargado para la vista espacial.")
+        return
+    selected_date = st.select_slider("Fecha focal", options=date_options, value=date_options[-1], key="ignis_space_date")
 
     satellite_options = ["Todos"] + sorted(frame["satellite"].dropna().astype(str).unique().tolist())
     selected_satellite = st.selectbox("Satélite", options=satellite_options, index=0, key="ignis_space_satellite")
