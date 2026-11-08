@@ -57,8 +57,11 @@ st.markdown(
 )
 
 with st.spinner("Preparando la vista espacial 3D..."):
-    if "combined" in st.session_state and st.session_state["combined"] is not None:
-        render_ignis_space_module(st.session_state["combined"])
+    data = st.session_state.get("combined")
+    if data is None:
+        data = st.session_state.get("ignis_combined")
+    if data is not None and not data.empty:
+        render_ignis_space_module(data)
     else:
         st.info("Primero cargá o importá un archivo de observaciones FIRMS o el maestro IGNIS para activar la vista 3D del espacio.")
         st.caption("La ruta /space se integra con la plataforma existente sin reemplazar el resto del dashboard.")

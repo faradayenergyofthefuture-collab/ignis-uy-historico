@@ -542,6 +542,8 @@ with tabs[0]:
     if len(vivos):
         entradas.append(vivos)
     combined=normalizar(pd.concat([entrada for entrada in entradas if len(entrada)],ignore_index=True)) if any(len(entrada) for entrada in entradas) else normalizar(base)
+    st.session_state['combined'] = combined
+    st.session_state['ignis_combined'] = combined
     for problem in problems:st.warning(problem)
     aa,bb,cc,dd=st.columns(4)
     aa.metric('Registros del maestro anterior',f'{len(base):,}')
@@ -555,7 +557,10 @@ with tabs[0]:
     else:st.info('Para comenzar, cargá uno de los archivos MODIS de 2000. También podés importar un maestro ya construido.')
 
 # Widgets outside tabs only depend on the current upload set. The corresponding results are shown within tabs.
-if 'combined' not in locals():combined=pd.DataFrame(columns=COLS)
+if 'combined' not in locals() or not isinstance(combined, pd.DataFrame):
+    combined = st.session_state.get('combined', pd.DataFrame(columns=COLS))
+if 'combined' not in st.session_state:
+    st.session_state['combined'] = combined
 if len(combined):
     reg = st.session_state.get('region', list(REGIONES)[0])
     sens = st.session_state.get('sensores', sorted(combined.instrumento.dropna().unique()))
