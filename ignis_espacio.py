@@ -60,7 +60,7 @@ SATELLITE_CATALOG = [
         "orbit": "Órbita polar",
         "source": "CelesTrak / NOAA / VIIRS",
         "color": "#d7a4ff",
-        "catalog": "49091",
+        "catalog": "54234",
     },
 ]
 
@@ -84,21 +84,28 @@ def _normalize_fire_frame(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     return frame
 
 
+def _parse_tle_pair(raw_text: str) -> Optional[tuple]:
+    """Acepta TLE estándar de 2 líneas o 3LE con una línea de nombre."""
+    lines = [line.strip() for line in raw_text.splitlines() if line.strip()]
+    line1 = next((line for line in lines if line.startswith("1 ") and len(line) >= 60), None)
+    line2 = next((line for line in lines if line.startswith("2 ") and len(line) >= 60), None)
+    if not line1 or not line2:
+        return None
+    if line1[2:7].strip() != line2[2:7].strip():
+        return None
+    return line1, line2
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_celestrak_tle(catalog_num: str) -> Optional[str]:
     url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={catalog_num}&FORMAT=TLE"
     last_error = None
-    for attempt in range(3):
+    for attempt in range(2):
         try:
-            response = requests.get(url, timeout=20)
+            response = requests.get(url, timeout=8)
             response.raise_for_status()
-            text = response.text.strip()
-            lines = [line.strip() for line in text.splitlines() if line.strip()]
-            if len(lines) >= 3:
-                return "\n".join(lines[:3])
-            if lines:
-                return None
-            return None
+            pair = _parse_tle_pair(response.text)
+            return "\n".join(pair) if pair else None
         except Exception as exc:  # pragma: no cover - network fallback
             last_error = exc
     if last_error is not None:
@@ -115,10 +122,10 @@ def _generate_orbit_positions_from_tle(tle_text: str, steps: int = 80) -> List[D
     if not HAS_SGP4 or Satrec is None:
         return []
     try:
-        lines = [line.strip() for line in tle_text.splitlines() if line.strip()]
-        if len(lines) < 3:
+        pair = _parse_tle_pair(tle_text)
+        if not pair:
             return []
-        sat = Satrec.twoline2rv(lines[1], lines[2])
+        sat = Satrec.twoline2rv(*pair)
     except Exception:
         return []
 
@@ -126,7 +133,8 @@ def _generate_orbit_positions_from_tle(tle_text: str, steps: int = 80) -> List[D
     try:
         ref_dt = datetime.now(timezone.utc)
         for idx in range(steps):
-            offset_minutes = idx * 24 * 60 / max(steps - 1, 1)
+            # Un tramo orbital de 105 minutos, no 24 h unidos por una sola línea.
+            offset_minutes = idx * 105.0 / max(steps - 1, 1)
             sample_dt = ref_dt + timedelta(minutes=offset_minutes)
             jd_float = _utc_to_jd_utc(sample_dt)
             jd_int = int(math.floor(jd_float))
@@ -173,15 +181,17 @@ def _build_satellite_payload() -> List[Dict[str, Any]]:
     payload: List[Dict[str, Any]] = []
     for sat in SATELLITE_CATALOG:
         orbit_data: List[Dict[str, Any]] = []
-        mode = "simulado"
+        mode = "ilustrativa"
         tle_text = _fetch_celestrak_tle(sat["catalog"])
         if tle_text:
             orbit_data = _generate_orbit_positions_from_tle(tle_text)
             if orbit_data:
                 mode = "real"
         if not orbit_data:
+            # El frontend dibuja un aro punteado esquemático, nunca una órbita
+            # calculada ni una localización histórica ficticia.
             orbit_data = []
-            mode = "histórica no disponible"
+            mode = "ilustrativa"
         payload.append({
             "name": sat["name"],
             "sensor": sat["sensor"],
@@ -419,27 +429,57 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             earthGroup.add(outlineLine);
           }}
 
-          if (payload.satellites && showSatellites) {{
-            payload.satellites.forEach((sat) => {{
-              if (!sat.positions || !sat.positions.length) return;
-              const color = new THREE.Color(sat.color);
-              const points = sat.positions.map((p) => latLonToVector3(p.lat, p.lon, 2.42));
-              const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
-              if (showOrbits) {{
-                const orbitMesh = new THREE.Line(
-                  orbitGeometry,
-                  new THREE.LineBasicMaterial({{ color, transparent: true, opacity: 0.9 }})
-                );
-                earthGroup.add(orbitMesh);
-              }}
-
-              const first = points[0];
-              const marker = new THREE.Mesh(
-                new THREE.SphereGeometry(0.055, 16, 16),
-                new THREE.MeshBasicMaterial({{ color }})
+          // Anillos esquemáticos, SOLO cuando CelesTrak/SGP4 no aporta trayectoria.
+          // No son órbitas verificadas ni posiciones de la fecha histórica FIRMS.
+          function schematicOrbit(index) {{
+            const r = 2.55;
+            const inclination = 98 * Math.PI / 180;
+            const node = index * Math.PI * 2 / 5;
+            const result = [];
+            for (let i = 0; i <= 128; i++) {{
+              const t = (i / 128) * Math.PI * 2;
+              const point = new THREE.Vector3(
+                r * Math.sin(t) * Math.sin(inclination),
+                r * Math.cos(t),
+                r * Math.sin(t) * Math.cos(inclination)
               );
-              marker.position.copy(first);
-              earthGroup.add(marker);
+              point.applyAxisAngle(new THREE.Vector3(0, 1, 0), node);
+              result.push(point);
+            }}
+            return result;
+          }}
+
+          let illustrativeOrbits = 0;
+          let tleOrbits = 0;
+          if (payload.satellites && (showSatellites || showOrbits)) {{
+            payload.satellites.forEach((sat, index) => {{
+              const color = new THREE.Color(sat.color);
+              const valid = Array.isArray(sat.positions) && sat.positions.length >= 2;
+              const schematic = !valid;
+              const points = valid
+                ? sat.positions.map((p) => latLonToVector3(
+                    p.lat, p.lon, 2.2 * (1 + Math.max(0, Number(p.alt_km) || 0) / 6378.137)
+                  ))
+                : schematicOrbit(index);
+              if (showOrbits) {{
+                const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                const orbitMaterial = schematic
+                  ? new THREE.LineDashedMaterial({{ color, transparent: true, opacity: 0.72, dashSize: 0.09, gapSize: 0.055 }})
+                  : new THREE.LineBasicMaterial({{ color, transparent: true, opacity: 0.9 }});
+                const orbitMesh = new THREE.Line(orbitGeometry, orbitMaterial);
+                if (schematic) orbitMesh.computeLineDistances();
+                earthGroup.add(orbitMesh);
+                if (schematic) illustrativeOrbits++;
+                else tleOrbits++;
+              }}
+              if (showSatellites) {{
+                const marker = new THREE.Mesh(
+                  new THREE.SphereGeometry(0.055, 16, 16),
+                  new THREE.MeshBasicMaterial({{ color }})
+                );
+                marker.position.copy(points[0]);
+                earthGroup.add(marker);
+              }}
             }});
           }}
 
@@ -491,7 +531,13 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             renderer.render(scene, camera);
           }}
           animate();
-          setStatus('3D listo');
+          if (showOrbits && illustrativeOrbits > 0) {{
+            setStatus('3D listo · órbitas punteadas ilustrativas (' + illustrativeOrbits + ')');
+          }} else if (showOrbits && tleOrbits > 0) {{
+            setStatus('3D listo · trayectorias TLE actuales');
+          }} else {{
+            setStatus('3D listo');
+          }}
           }} catch (error) {{
             console.error('IGNIS 3D error:', error);
             const message = error && error.message ? error.message : 'Error no identificado al preparar la vista 3D.';
@@ -660,7 +706,7 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
     <div class="ignis-space-panel">
       <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center; color:#dfe9ff; font-size:13px;">
         <span><strong>Control temporal</strong> · reproducción de la capa de focos térmicos y satélites</span>
-        <span>Modo orbital: real si CelesTrak responde; simulación si no hay TLE disponible.</span>
+        <span>Órbitas sólidas: TLE actuales. Punteadas: esquemas ilustrativos sin TLE. No son reconstrucciones históricas.</span>
       </div>
     </div>
     """, unsafe_allow_html=True)

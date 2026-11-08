@@ -488,6 +488,11 @@ NAV_PAGES = [
     "🌎 Fusión cielo–tierra",
 ]
 
+def _ignis_navigate_to(section: str) -> None:
+    """El callback corre antes de reinstanciar el widget 'ignis_nav'."""
+    st.session_state["ignis_nav"] = section
+
+
 # El archivo cargado sobrevive a los cambios de sección en Streamlit.
 combined=st.session_state.get("combined",pd.DataFrame(columns=COLS))
 if not isinstance(combined,pd.DataFrame):
@@ -596,10 +601,9 @@ if current_section == NAV_PAGES[0]:
     ]
     for i,(label,target) in enumerate(intro_targets):
         with intro_actions[i]:
-            if st.button(label,type="primary" if i==0 else "secondary",
-                         use_container_width=True,key=f"ignis_intro_action_{i}"):
-                st.session_state["ignis_nav"]=target
-                st.rerun()
+            st.button(label,type="primary" if i==0 else "secondary",
+                      use_container_width=True,key=f"ignis_intro_action_{i}",
+                      on_click=_ignis_navigate_to,args=(target,))
     st.write("")
     st.caption("CONOCÉ LAS INSTITUCIONES Y EL DESAFÍO")
     ema_link, nasa_link = st.columns(2, gap="medium")
@@ -776,9 +780,8 @@ if current_section==NAV_PAGES[1]:
         st.subheader("📡 Panel de análisis")
         if view.empty:
             st.markdown("Importá ZIP/CSV de NASA FIRMS o un Maestro IGNIS para empezar.")
-            if st.button("📂 Ir a Carga de datos",type="primary",use_container_width=True):
-                st.session_state["ignis_nav"]=NAV_PAGES[2]
-                st.rerun()
+            st.button("📂 Ir a Carga de datos",type="primary",use_container_width=True,
+                      on_click=_ignis_navigate_to,args=(NAV_PAGES[2],))
         else:
             counts=view.groupby("instrumento").size().sort_values()
             fig=px.bar(x=counts.values,y=counts.index,orientation="h",
@@ -788,9 +791,8 @@ if current_section==NAV_PAGES[1]:
                 paper_bgcolor="rgba(0,0,0,0)",plot_bgcolor="rgba(0,0,0,0)")
             st.plotly_chart(fig,use_container_width=True,key="home_sensors")
             st.caption("Conteos observados; no equivalen a número de incendios.")
-            if st.button("📚 Explorar histórico",use_container_width=True):
-                st.session_state["ignis_nav"]=NAV_PAGES[4]
-                st.rerun()
+            st.button("📚 Explorar histórico",use_container_width=True,
+                      on_click=_ignis_navigate_to,args=(NAV_PAGES[4],))
     if not view.empty:
         st.subheader("📈 Evolución mensual del año seleccionado")
         monthly=view.groupby("mes").size().reindex(range(1,13),fill_value=0)
