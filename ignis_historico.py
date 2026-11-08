@@ -22,7 +22,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from ignis_espacio import render_ignis_space_module
 
-st.set_page_config(page_title='IGNIS UY | Histórico 2000–2026',page_icon='🛰️',layout='wide',initial_sidebar_state='collapsed')
+st.set_page_config(page_title='IGNIS UY | Histórico 2000–2026',page_icon='🛰️',layout='wide',initial_sidebar_state='expanded')
 BASE=Path(__file__).resolve().parent
 REGIONES={
  'Uruguay (rectángulo aproximado)':(-35.2,-30.,-58.6,-53.),
@@ -456,7 +456,44 @@ with header_right:
     badge_nasa=f'<a class="ignis-badge" href="https://www.spaceappschallenge.org/" target="_blank" rel="noopener noreferrer"><img src="{asset_uri(nasa)}" alt="Emblema NASA"/> NASA Space Apps 2026</a>' if nasa.exists() else '<a class="ignis-badge" href="https://www.spaceappschallenge.org/" target="_blank" rel="noopener noreferrer">NASA Space Apps 2026</a>'
     st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span>{badge_nasa}{badge_ema}</div></div>''',unsafe_allow_html=True)
 
+combined = pd.DataFrame(columns=COLS)
+
+st.sidebar.markdown('### Panel de control')
+st.sidebar.markdown('''
+**IGNIS UY** es una plataforma de análisis geoespacial desarrollada para visualizar anomalías térmicas y detecciones satelitales asociadas a incendios, con enfoque en Uruguay y su contexto regional.
+
+Esta página fue diseñada para participar en **NASA Space Apps**, entendiendo el reto como una oportunidad para convertir datos abiertos de observación terrestre y satelital en una herramienta útil para la investigación, la trazabilidad y la toma de decisiones científicas.
+
+El reto elegido se centra en utilizar observaciones de **NASA FIRMS** y datos del contexto geográfico de Uruguay para explorar patrones históricos, comparar sensores como **MODIS** y **VIIRS**, detectar anomalías, y presentar evidencia documental con un enfoque transparente y reproducible.
+''')
+
+with st.sidebar:
+    st.markdown('---')
+    st.caption('Configuración rápida del análisis')
+    if len(combined):
+        reg_sidebar = st.selectbox('Región / caso', list(REGIONES), index=0, key='sidebar_region')
+        sens_sidebar = st.multiselect('Sensores visibles', sorted(combined.instrumento.dropna().unique()), default=sorted(combined.instrumento.dropna().unique()), key='sidebar_sensores')
+        st.session_state['region'] = reg_sidebar
+        st.session_state['sensores'] = sens_sidebar
+    st.button('Reiniciar vista', key='reset_sidebar_view', use_container_width=True)
+    st.markdown('---')
+    st.caption('Referencia del reto')
+    st.write('NASA Space Apps Challenge 2026 · Exploración de observación terrestre y satelital · ciencia abierta + datos públicos + impacto local.')
+
 st.info('Los registros son anomalías térmicas, no incendios confirmados. Este prototipo no proporciona alertas operativas ni mide superficies quemadas.')
+
+intro = st.container()
+with intro:
+    st.markdown('''
+    <div style="margin: 0 0 1.2rem 0; padding: 1.1rem 1.2rem; border: 1px solid rgba(145, 168, 255, 0.35); border-radius: 18px; background: linear-gradient(135deg, rgba(18,28,69,0.86), rgba(20,48,83,0.72)); box-shadow: 0 8px 26px rgba(8,12,35,0.22);">
+      <div style="font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: #a8b9ff; font-weight: 700; margin-bottom: 0.5rem;">Introducción</div>
+      <div style="font-size: 1.15rem; color: #eef5ff; font-weight: 600; margin-bottom: 0.35rem;">IGNIS UY convierte observaciones satelitales en una herramienta de análisis para Uruguay.</div>
+      <div style="color: #cfe1ff; line-height: 1.6;">
+        La plataforma reúne detecciones de la serie <strong>NASA FIRMS</strong>, compara sensores como <strong>MODIS</strong> y <strong>VIIRS</strong>, facilita la lectura histórica de patrones térmicos y ayuda a interpretar las señales relevantes del reto elegido dentro del marco del <strong>NASA Space Apps Challenge</strong>.
+      </div>
+    </div>
+    ''', unsafe_allow_html=True)
+
 tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🔄 Armonización MODIS–VIIRS','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF','🛰️ Monitoreo reciente','🛰️ ESPACIO / SEGUIMIENTO SATELITAL','🤖 ASK IGNIS','🌎 Fusión cielo–tierra'])
 with tabs[0]:
     st.subheader('Incorporación al histórico')
@@ -520,14 +557,18 @@ with tabs[0]:
 # Widgets outside tabs only depend on the current upload set. The corresponding results are shown within tabs.
 if 'combined' not in locals():combined=pd.DataFrame(columns=COLS)
 if len(combined):
-    st.markdown('#### Controles compartidos de análisis')
-    c1,c2=st.columns([2,3])
-    with c1:reg=st.selectbox('Región / caso',list(REGIONES),key='region')
-    with c2:sens=st.multiselect('Familias instrumentales',sorted(combined.instrumento.dropna().unique()),default=sorted(combined.instrumento.dropna().unique()),key='sensores')
-    sample=dotar_tiempo(filtrar(combined,reg,sens))
-    years=sorted(sample.anio.dropna().astype(int).unique()) if len(sample) else []
-    selected=st.selectbox('Año a inspeccionar',years,index=len(years)-1) if years else None
-else:sample=pd.DataFrame();selected=None;reg=list(REGIONES)[0];sens=[]
+    reg = st.session_state.get('region', list(REGIONES)[0])
+    sens = st.session_state.get('sensores', sorted(combined.instrumento.dropna().unique()))
+    if not sens:
+        sens = sorted(combined.instrumento.dropna().unique())
+    sample = dotar_tiempo(filtrar(combined, reg, sens))
+    years = sorted(sample.anio.dropna().astype(int).unique()) if len(sample) else []
+    selected = st.selectbox('Año a inspeccionar', years, index=len(years)-1) if years else None
+else:
+    sample = pd.DataFrame()
+    selected = None
+    reg = st.session_state.get('region', list(REGIONES)[0])
+    sens = st.session_state.get('sensores', [])
 
 with tabs[1]:
     st.subheader('Resumen del año seleccionado · lo esencial del desafío NASA')
