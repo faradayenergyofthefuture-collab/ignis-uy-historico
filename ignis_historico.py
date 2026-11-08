@@ -36,6 +36,13 @@ REGIONES={
 COLS=['fecha','latitude','longitude','instrumento','satellite','acq_time','frp','confidence','fuente','id_registro']
 PALETTE=['#191d49','#422b87','#7646b3','#bf3f9d','#f46b64','#ffce62']
 
+class _StoredUpload:
+    def __init__(self, name: str, payload: bytes):
+        self.name = name
+        self._payload = payload
+    def getvalue(self):
+        return self._payload
+
 st.markdown('''<style>
 .stApp {background:radial-gradient(ellipse at 88% 0%,#1b2355 0%,#0e1327 31%,#080d19 70%);color:#eef3ff}
 .block-container{padding-top:3.6rem;padding-bottom:3rem;max-width:1600px}
@@ -527,8 +534,23 @@ with tabs[0]:
     st.caption('La consulta NRT de FIRMS requiere una FIRMS MAP_KEY configurada en Secrets. Puede cubrir hasta 10 días; el historial completo sigue dependiendo de archivos históricos.')
 
     st.markdown('#### Archivos históricos')
-    master=st.file_uploader('1 · Maestro IGNIS anterior (opcional, archivo ZIP exportado por esta aplicación)',type=['zip'],key='master')
-    rawfiles=st.file_uploader('2 · Nuevos ZIP o CSV NASA FIRMS (varios simultáneamente)',type=['zip','csv'],accept_multiple_files=True,key='raws')
+    master_blob = st.session_state.get('ignis_master_blob')
+    raw_session = st.session_state.get('ignis_raws', [])
+
+    master = st.file_uploader('1 · Maestro IGNIS anterior (opcional, archivo ZIP exportado por esta aplicación)',type=['zip'],key='master')
+    if master is not None:
+        master_blob = master.getvalue()
+        st.session_state['ignis_master_blob'] = master_blob
+    elif master_blob is not None:
+        master = _StoredUpload('maestro_guardado.zip', master_blob)
+
+    rawfiles = st.file_uploader('2 · Nuevos ZIP o CSV NASA FIRMS (varios simultáneamente)',type=['zip','csv'],accept_multiple_files=True,key='raws')
+    if rawfiles:
+        raw_session = [(a.name, a.getvalue()) for a in rawfiles]
+        st.session_state['ignis_raws'] = raw_session
+    elif raw_session:
+        rawfiles = [_StoredUpload(name, payload) for name, payload in raw_session]
+
     base=pd.DataFrame(columns=COLS)
     if master:
         base,meta,error=leer_maestro(master.getvalue())
