@@ -423,6 +423,55 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
 
 
 def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
+    st.markdown(
+        """
+        <style>
+        .ignis-space-shell {{
+            margin-top: 0.2rem;
+            margin-bottom: 1rem;
+        }}
+        .ignis-space-metrics {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 12px;
+            margin: 1rem 0 1.2rem;
+        }}
+        .ignis-space-metric {{
+            background: linear-gradient(135deg, rgba(17, 29, 58, 0.92), rgba(17, 44, 68, 0.76));
+            border: 1px solid rgba(126, 153, 255, 0.38);
+            border-radius: 14px;
+            padding: 0.8rem 0.9rem;
+            box-shadow: 0 10px 20px rgba(7, 11, 21, 0.18);
+        }}
+        .ignis-space-metric .label {{
+            font-size: 11px;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: #9ab1ef;
+            margin-bottom: 0.35rem;
+            font-weight: 700;
+        }}
+        .ignis-space-metric .value {{
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: #f2f7ff;
+        }}
+        .ignis-space-metric .sub {{
+            font-size: 12px;
+            color: #bfd2ff;
+            margin-top: 0.2rem;
+        }}
+        @media (max-width: 900px) {{
+           .ignis-space-metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
+        }}
+        @media (max-width: 560px) {{
+           .ignis-space-metrics {{ grid-template-columns: 1fr; }}
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.subheader("🌍 ESPACIO / SEGUIMIENTO SATELITAL")
     st.caption("Globo terrestre interactivo, foco geográfico en Uruguay y trazado de observaciones térmicas con contexto orbital. Cuando no hay TLE activo, el sistema presenta una simulación claramente identificada para mantener la experiencia visual sin confundirla con datos reales.")
 
@@ -431,6 +480,24 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
         return
 
     frame = _normalize_fire_frame(df)
+    if not frame.empty:
+        dates_count = len(pd.to_datetime(frame["fecha"], utc=True).dt.date.unique())
+        hotspots_count = len(frame)
+        sensors_count = frame["instrumento"].nunique()
+        coverage_text = "Simulación" if frame.empty else "TLE + síntesis"
+        st.markdown(
+            f'''
+            <div class="ignis-space-shell">
+              <div class="ignis-space-metrics">
+                <div class="ignis-space-metric"><div class="label">Registros</div><div class="value">{hotspots_count:,}</div><div class="sub">Focos térmicos</div></div>
+                <div class="ignis-space-metric"><div class="label">Fechas</div><div class="value">{dates_count}</div><div class="sub">En el conjunto</div></div>
+                <div class="ignis-space-metric"><div class="label">Sensores</div><div class="value">{sensors_count}</div><div class="sub">Instrumentos activos</div></div>
+                <div class="ignis-space-metric"><div class="label">Orbita</div><div class="value">{coverage_text}</div><div class="sub">Visualización</div></div>
+              </div>
+            </div>
+            ''',
+            unsafe_allow_html=True,
+        )
     if frame.empty:
         st.info("El conjunto cargado no tiene coordenadas geográficas válidas para renderizar capas espaciales.")
         return
@@ -479,25 +546,25 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
         """
         <style>
         .ignis-space-viewport {{
-            border: 1px solid rgba(125, 156, 255, 0.45);
-            border-radius: 18px;
+            border: 1px solid rgba(125, 156, 255, 0.48);
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 18px 40px rgba(3, 8, 20, 0.55);
+            box-shadow: 0 22px 42px rgba(3, 8, 20, 0.6);
             height: min(78vh, 860px);
-            min-height: 520px;
-            background: #020812;
+            min-height: 560px;
+            background: linear-gradient(180deg, rgba(2,8,18,1), rgba(9,17,31,1));
         }}
         .ignis-space-panel {{
             position: sticky;
             bottom: 12px;
             z-index: 1000;
             margin-top: 12px;
-            padding: 10px 14px;
+            padding: 12px 16px;
             border: 1px solid rgba(134, 159, 255, 0.38);
             border-radius: 16px;
-            background: rgba(11, 18, 32, 0.88);
+            background: rgba(10, 18, 31, 0.9);
             backdrop-filter: blur(8px);
-            box-shadow: 0 -10px 20px rgba(0,0,0,0.2);
+            box-shadow: 0 -10px 22px rgba(0,0,0,0.22);
         }}
         </style>
         """,

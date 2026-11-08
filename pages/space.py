@@ -8,37 +8,49 @@ st.markdown(
     """
     <style>
     .ignis-space-hero {
-        background: linear-gradient(135deg, rgba(13, 22, 46, 0.96), rgba(18, 45, 68, 0.88));
-        border: 1px solid rgba(146, 176, 255, 0.38);
-        border-radius: 18px;
-        padding: 1.1rem 1.2rem;
-        box-shadow: 0 18px 36px rgba(6, 12, 28, 0.28);
+        background: linear-gradient(120deg, rgba(9,16,31,0.96), rgba(16,40,66,0.92) 38%, rgba(28,58,92,0.85) 100%);
+        border: 1px solid rgba(137, 170, 255, 0.35);
+        border-radius: 20px;
+        padding: 1.4rem 1.5rem;
+        box-shadow: 0 20px 42px rgba(5, 10, 24, 0.28);
         margin-bottom: 1rem;
+        position: relative;
+        overflow: hidden;
+    }
+    .ignis-space-hero::after {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 58%;
+        width: 42%;
+        background: radial-gradient(circle at center, rgba(92, 197, 255, 0.22), transparent 60%);
+        pointer-events: none;
     }
     .ignis-space-hero .eyebrow {
         font-size: 11px;
-        letter-spacing: 1.5px;
+        letter-spacing: 1.6px;
         text-transform: uppercase;
-        color: #a5b9ff;
+        color: #9fb9ff;
         font-weight: 700;
-        margin-bottom: 0.35rem;
+        margin-bottom: 0.45rem;
     }
     .ignis-space-hero h1 {
         margin: 0;
         color: #edf4ff;
-        font-size: clamp(2rem, 3vw, 2.7rem);
+        font-size: clamp(2.1rem, 3vw, 2.8rem);
         line-height: 1.1;
+        letter-spacing: -0.04em;
     }
     .ignis-space-hero p {
-        margin: 0.55rem 0 0;
-        color: #cfe0ff;
-        line-height: 1.6;
+        margin: 0.7rem 0 0;
+        color: #d7e3ff;
+        line-height: 1.65;
+        max-width: 80%;
     }
     </style>
     <div class="ignis-space-hero">
       <div class="eyebrow">Espacio / seguimiento satelital</div>
       <h1>IGNIS UY — Espacio</h1>
-      <p>Visualización 3D de la Tierra, focos térmicos y seguimiento orbital de observaciones satelitales para Uruguay y su contexto regional.</p>
+      <p>Visualización 3D de la Tierra, focos térmicos y seguimiento orbital para Uruguay y su contexto regional, con una experiencia más visual y profesional.</p>
     </div>
     """,
     unsafe_allow_html=True,
