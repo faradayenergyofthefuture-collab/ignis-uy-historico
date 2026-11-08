@@ -4,7 +4,7 @@ Proyecto experimental de investigación NASA FIRMS. Basado en V2.
 
 ## Instalación / Streamlit
 
-Repositorio `ignis-uy-historico`, rama `main`, archivo principal `ignis_historico.py`. Subir a raíz los archivos de este paquete y conservar la carpeta `biblioteca_ignis/`.
+Repositorio `ignis-uy-historico`, rama `main`, archivo principal NUEVO `principal.py`. Subir a raíz los archivos de este paquete y conservar la carpeta `biblioteca_ignis/`.
 
 ## Novedades V3
 
