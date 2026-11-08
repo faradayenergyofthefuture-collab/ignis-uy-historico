@@ -510,47 +510,47 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
     st.markdown(
         """
         <style>
-        .ignis-space-shell {{
+        .ignis-space-shell {
             margin-top: 0.2rem;
             margin-bottom: 1rem;
-        }}
-        .ignis-space-metrics {{
+        }
+        .ignis-space-metrics {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 12px;
             margin: 1rem 0 1.2rem;
-        }}
-        .ignis-space-metric {{
+        }
+        .ignis-space-metric {
             background: linear-gradient(135deg, rgba(17, 29, 58, 0.92), rgba(17, 44, 68, 0.76));
             border: 1px solid rgba(126, 153, 255, 0.38);
             border-radius: 14px;
             padding: 0.8rem 0.9rem;
             box-shadow: 0 10px 20px rgba(7, 11, 21, 0.18);
-        }}
-        .ignis-space-metric .label {{
+        }
+        .ignis-space-metric .label {
             font-size: 11px;
             letter-spacing: 0.09em;
             text-transform: uppercase;
             color: #9ab1ef;
             margin-bottom: 0.35rem;
             font-weight: 700;
-        }}
-        .ignis-space-metric .value {{
+        }
+        .ignis-space-metric .value {
             font-size: 1.25rem;
             font-weight: 700;
             color: #f2f7ff;
-        }}
-        .ignis-space-metric .sub {{
+        }
+        .ignis-space-metric .sub {
             font-size: 12px;
             color: #bfd2ff;
             margin-top: 0.2rem;
-        }}
-        @media (max-width: 900px) {{
-           .ignis-space-metrics {{ grid-template-columns: repeat(2, minmax(0, 1fr)); }}
-        }}
-        @media (max-width: 560px) {{
-           .ignis-space-metrics {{ grid-template-columns: 1fr; }}
-        }}
+        }
+        @media (max-width: 900px) {
+           .ignis-space-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 560px) {
+           .ignis-space-metrics { grid-template-columns: 1fr; }
+        }
         </style>
         """,
         unsafe_allow_html=True,
@@ -558,7 +558,6 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
 
     st.subheader("🌍 ESPACIO / SEGUIMIENTO SATELITAL")
     st.caption("Globo terrestre interactivo, foco geográfico en Uruguay y trazado de observaciones térmicas con contexto orbital. Cuando no hay TLE activo, el sistema presenta una simulación claramente identificada para mantener la experiencia visual sin confundirla con datos reales.")
-    st.status("Inicializando 3D", state="running", expanded=True)
 
     frame = _normalize_fire_frame(df)
     if df is None or df.empty:
@@ -628,7 +627,7 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
     st.markdown(
         """
         <style>
-        .ignis-space-viewport {{
+        .ignis-space-viewport {
             border: 1px solid rgba(125, 156, 255, 0.48);
             border-radius: 20px;
             overflow: hidden;
@@ -636,8 +635,8 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
             height: min(78vh, 860px);
             min-height: 560px;
             background: linear-gradient(180deg, rgba(2,8,18,1), rgba(9,17,31,1));
-        }}
-        .ignis-space-panel {{
+        }
+        .ignis-space-panel {
             position: sticky;
             bottom: 12px;
             z-index: 1000;
@@ -648,7 +647,7 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
             background: rgba(10, 18, 31, 0.9);
             backdrop-filter: blur(8px);
             box-shadow: 0 -10px 22px rgba(0,0,0,0.22);
-        }}
+        }
         </style>
         """,
         unsafe_allow_html=True,
