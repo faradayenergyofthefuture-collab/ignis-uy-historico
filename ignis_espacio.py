@@ -216,87 +216,106 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
     <html>
       <head>
         <meta charset="utf-8" />
-        <script src="https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Cesium.js"></script>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.119.0/Build/Cesium/Widgets/widgets.css" />
         <style>
-          html, body, #cesiumContainer {{
+          html, body {{
             width: 100%; height: 100%; margin: 0; overflow: hidden; background: #020812;
+            font-family: Arial, sans-serif;
           }}
-          body {{
-            font-family: Arial, sans-serif; background: radial-gradient(circle at top, #071827 0%, #020812 55%, #01050a 100%);
+          #globe-root {{
+            width: 100%; height: 100%; min-height: 640px; display: block; background: radial-gradient(circle at top, #071827 0%, #020812 55%, #01050a 100%);
           }}
-          .cesium-viewer {{
-            background: #020812;
+          canvas {{
+            display: block; width: 100% !important; height: 100% !important;
           }}
-          .cesium-widget-credits {{ display: none; }}
-          .cesium-widget {{ border-radius: 0; }}
         </style>
       </head>
       <body>
-        <div id="cesiumContainer"></div>
-        <script>
+        <div id="globe-root"></div>
+        <script type="module">
+          import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+          import {{ OrbitControls }} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
           const payload = {payload};
-          const viewer = new Cesium.Viewer('cesiumContainer', {{
-            animation: false,
-            baseLayerPicker: false,
-            fullscreenButton: true,
-            geocoder: false,
-            homeButton: false,
-            infoBox: false,
-            navigationHelpButton: false,
-            sceneModePicker: true,
-            timeline: false,
-            selectionIndicator: false,
-            imageryProvider: false,
-            terrainProvider: new Cesium.EllipsoidTerrainProvider(),
-            skyAtmosphere: new Cesium.SkyAtmosphere({{ brightnessShift: 0.2, saturationShift: 0.35 }}),
-            globe: {{
-              enableLighting: true,
-              show: true,
-              baseColor: Cesium.Color.fromCssColorString('#051827')
-            }}
-          }});
+          const container = document.getElementById('globe-root');
+          const scene = new THREE.Scene();
+          scene.background = new THREE.Color(0x020812);
 
-          viewer.scene.backgroundColor = Cesium.Color.BLACK;
-          viewer.scene.globe.enableLighting = true;
-          viewer.scene.globe.show = true;
+          const camera = new THREE.PerspectiveCamera(35, container.clientWidth / container.clientHeight, 0.1, 2000);
+          camera.position.set(0, 1.2, 6.4);
 
-          const uruguayOutline = [
-            -58.4, -34.9,
-            -58.1, -34.2,
-            -57.2, -33.5,
-            -56.4, -32.8,
-            -55.8, -32.0,
-            -54.7, -31.6,
-            -54.3, -32.2,
-            -54.7, -33.0,
-            -55.5, -34.0,
-            -56.1, -34.8,
-            -58.4, -34.9,
-          ];
+          const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: false }});
+          renderer.setSize(container.clientWidth, container.clientHeight);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+          container.appendChild(renderer.domElement);
 
-          viewer.entities.add({{
-            polygon: {{
-              hierarchy: Cesium.Cartesian3.fromDegreesArray(uruguayOutline),
-              material: Cesium.Color.fromCssColorString('#3dd9ff').withAlpha(0.12),
-              outline: true,
-              outlineColor: Cesium.Color.fromCssColorString('#7ad9ff').withAlpha(0.9),
-              outlineWidth: 2,
-              perPositionHeight: false,
-            }}
-          }});
+          const controls = new OrbitControls(camera, renderer.domElement);
+          controls.enableDamping = true;
+          controls.dampingFactor = 0.06;
+          controls.enablePan = false;
+          controls.minDistance = 3.1;
+          controls.maxDistance = 12;
+          controls.enableZoom = true;
+          controls.autoRotate = true;
+          controls.autoRotateSpeed = 0.5;
+          controls.target.set(-0.1, -0.25, 0);
 
-          viewer.entities.add({{ position: Cesium.Cartesian3.fromDegrees(-56.0, -32.5), label: {{ text: 'Uruguay', font: '18px sans-serif', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 1, style: Cesium.LabelStyle.FILL_AND_OUTLINE }}}});
-          viewer.entities.add({{ position: Cesium.Cartesian3.fromDegrees(-58.0, -18.0), label: {{ text: 'Sudamérica', font: '16px sans-serif', fillColor: Cesium.Color.WHITE.withAlpha(0.8), outlineColor: Cesium.Color.BLACK, outlineWidth: 1, style: Cesium.LabelStyle.FILL_AND_OUTLINE }}}});
+          const ambient = new THREE.AmbientLight(0x9bbdff, 1.15);
+          scene.add(ambient);
 
-          const region = payload.region || 'global';
-          const destinationMap = {{
-            global: {{ destination: Cesium.Cartesian3.fromDegrees(-58, -18, 5600000) }},
-            south_america: {{ destination: Cesium.Cartesian3.fromDegrees(-62, -18, 2600000) }},
-            uruguay: {{ destination: Cesium.Cartesian3.fromDegrees(-56.0, -32.8, 1300000) }},
-            selected: {{ destination: Cesium.Cartesian3.fromDegrees(-56.0, -32.8, 1300000) }}
-          }};
-          viewer.camera.flyTo({{ ...destinationMap[region], duration: 2.5, easingFunction: Cesium.EasingFunction.CUBIC_IN_OUT }});
+          const sunLight = new THREE.DirectionalLight(0xffffff, 1.8);
+          sunLight.position.set(5, 3, 7);
+          scene.add(sunLight);
+
+          const starGeometry = new THREE.BufferGeometry();
+          const starCount = 2200;
+          const starPositions = new Float32Array(starCount * 3);
+          for (let i = 0; i < starCount; i++) {{
+            const radius = 25 + Math.random() * 18;
+            const theta = Math.random() * Math.PI * 2;
+            const phi = Math.acos(2 * Math.random() - 1);
+            starPositions[i * 3] = radius * Math.sin(phi) * Math.cos(theta);
+            starPositions[i * 3 + 1] = radius * Math.cos(phi);
+            starPositions[i * 3 + 2] = radius * Math.sin(phi) * Math.sin(theta);
+          }}
+          starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+          const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({{ color: 0xdfeaff, size: 0.08, transparent: true, opacity: 0.95 }}));
+          scene.add(stars);
+
+          const earthGroup = new THREE.Group();
+          scene.add(earthGroup);
+
+          const earthTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+          const earth = new THREE.Mesh(
+            new THREE.SphereGeometry(2.2, 96, 96),
+            new THREE.MeshPhongMaterial({{
+              map: earthTexture,
+              shininess: 10,
+              emissive: new THREE.Color(0x071a2d),
+              emissiveIntensity: 0.35
+            }})
+          );
+          earthGroup.add(earth);
+
+          const atmosphere = new THREE.Mesh(
+            new THREE.SphereGeometry(2.35, 96, 96),
+            new THREE.MeshPhongMaterial({{
+              color: 0x49a7ff,
+              transparent: true,
+              opacity: 0.18,
+              side: THREE.BackSide
+            }})
+          );
+          earthGroup.add(atmosphere);
+
+          function latLonToVector3(lat, lon, radius) {{
+            const phi = (90 - lat) * Math.PI / 180;
+            const theta = (lon + 180) * Math.PI / 180;
+            return new THREE.Vector3(
+              -(radius * Math.sin(phi) * Math.cos(theta)),
+              radius * Math.cos(phi),
+              radius * Math.sin(phi) * Math.sin(theta)
+            );
+          }}
 
           const showSatellites = payload.show_satellites !== false;
           const showOrbits = payload.show_orbits !== false;
@@ -304,69 +323,84 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           const showBounds = payload.show_bounds !== false;
 
           if (showBounds) {{
-            viewer.entities.add({{ position: Cesium.Cartesian3.fromDegrees(-58.4, -34.9), label: {{ text: 'Uruguay', font: '16px sans-serif', fillColor: Cesium.Color.WHITE, outlineColor: Cesium.Color.BLACK, outlineWidth: 1 }} }});
+            const uruguayPoints = [
+              [-58.4, -34.9], [-58.1, -34.2], [-57.2, -33.5], [-56.4, -32.8], [-55.8, -32.0],
+              [-54.7, -31.6], [-54.3, -32.2], [-54.7, -33.0], [-55.5, -34.0], [-56.1, -34.8]
+            ].map(([lon, lat]) => latLonToVector3(lat, lon, 2.22));
+            const outline = new THREE.BufferGeometry().setFromPoints(uruguayPoints);
+            const outlineLine = new THREE.Line(
+              outline,
+              new THREE.LineBasicMaterial({{ color: 0x7ad9ff, transparent: true, opacity: 0.8 }})
+            );
+            earthGroup.add(outlineLine);
           }}
 
-          if (payload.satellites) {{
+          if (payload.satellites && showSatellites) {{
             payload.satellites.forEach((sat) => {{
-              if (!showSatellites) return;
-              const position = sat.positions && sat.positions.length ? sat.positions[0] : null;
-              if (position) {{
-                viewer.entities.add({{
-                  position: Cesium.Cartesian3.fromDegrees(position.lon, position.lat, Math.max(position.alt_km || 700, 0) * 1000),
-                  label: {{
-                    text: sat.name,
-                    font: '13px sans-serif',
-                    fillColor: Cesium.Color.fromCssColorString(sat.color),
-                    outlineColor: Cesium.Color.BLACK,
-                    outlineWidth: 1,
-                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                    pixelOffset: new Cesium.Cartesian2(0, -20)
-                  }}
-                }});
+              if (!sat.positions || !sat.positions.length) return;
+              const color = new THREE.Color(sat.color);
+              const points = sat.positions.map((p) => latLonToVector3(p.lat, p.lon, 2.42));
+              const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
+              if (showOrbits) {{
+                const orbitMesh = new THREE.Line(
+                  orbitGeometry,
+                  new THREE.LineBasicMaterial({{ color, transparent: true, opacity: 0.9 }})
+                );
+                earthGroup.add(orbitMesh);
               }}
 
-              if (showOrbits && sat.positions && sat.positions.length > 1) {{
-                const orbitPositions = sat.positions.map((p) => Cesium.Cartesian3.fromDegrees(p.lon, p.lat, Math.max(p.alt_km || 700, 0) * 1000));
-                viewer.entities.add({{
-                  polyline: {{
-                    positions: orbitPositions,
-                    width: 2,
-                    material: Cesium.Color.fromCssColorString(sat.color).withAlpha(0.8)
-                  }}
-                }});
-              }}
+              const first = points[0];
+              const marker = new THREE.Mesh(
+                new THREE.SphereGeometry(0.055, 16, 16),
+                new THREE.MeshBasicMaterial({{ color }})
+              );
+              marker.position.copy(first);
+              earthGroup.add(marker);
             }});
           }}
 
           if (showHotspots && payload.hotspots) {{
             payload.hotspots.forEach((point) => {{
-              viewer.entities.add({{
-                position: Cesium.Cartesian3.fromDegrees(point.lon, point.lat, Math.max(point.frp || 1, 1) * 2500),
-                point: {{
-                  pixelSize: 6 + Math.min(Math.max(point.frp / 25, 0), 32),
-                  color: Cesium.Color.fromCssColorString(point.color).withAlpha(0.9),
-                  outlineColor: Cesium.Color.WHITE,
-                  outlineWidth: 1,
-                  scaleByDistance: new Cesium.NearFarScalar(1.5e5, 1.5, 8e6, 0.4),
-                }},
-                label: {{
-                  text: `${{point.sensor}} • FRP ${{point.frp.toFixed(1)}}`,
-                  font: '12px sans-serif',
-                  fillColor: Cesium.Color.WHITE,
-                  outlineColor: Cesium.Color.BLACK,
-                  outlineWidth: 1,
-                  style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                  pixelOffset: new Cesium.Cartesian2(0, -18),
-                  showBackground: true,
-                  backgroundColor: Cesium.Color.fromCssColorString('#101828').withAlpha(0.7)
-                }}
-              }});
+              const mesh = new THREE.Mesh(
+                new THREE.SphereGeometry(Math.min(0.08 + point.frp / 180, 0.2), 16, 16),
+                new THREE.MeshBasicMaterial({{ color: new THREE.Color(point.color), transparent: true, opacity: 0.9 }})
+              );
+              mesh.position.copy(latLonToVector3(point.lat, point.lon, 2.31));
+              earthGroup.add(mesh);
             }});
           }}
 
-          viewer.scene.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-          viewer.scene.globe.depthTestAgainstTerrain = false;
+          const region = payload.region || 'global';
+          if (region === 'uruguay') {{
+            camera.position.set(0.9, 1.4, 5.5);
+            controls.target.set(-0.2, -0.2, 0.1);
+          }} else if (region === 'south_america') {{
+            camera.position.set(1.9, 0.8, 5.4);
+            controls.target.set(-0.6, -0.2, 0.1);
+          }} else {{
+            camera.position.set(0, 1.2, 6.4);
+            controls.target.set(0, 0, 0);
+          }}
+          controls.update();
+
+          const onResize = () => {{
+            const width = container.clientWidth || 900;
+            const height = container.clientHeight || 640;
+            camera.aspect = width / height;
+            camera.updateProjectionMatrix();
+            renderer.setSize(width, height);
+          }};
+          window.addEventListener('resize', onResize);
+          onResize();
+
+          function animate() {{
+            requestAnimationFrame(animate);
+            earth.rotation.y += 0.0018;
+            atmosphere.rotation.y -= 0.0007;
+            controls.update();
+            renderer.render(scene, camera);
+          }}
+          animate();
         </script>
       </body>
     </html>
