@@ -408,8 +408,8 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
 
 
 def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
-    st.subheader("🌍 VISUALIZACIÓN 3D DE LA TIERRA")
-    st.caption("Globo terrestre interactivo, seguimiento satelital y focos térmicos de IGNIS UY. Los elementos orbitales se presentan en modo real si hay TLE disponible; en caso contrario, el sistema usa una simulación claramente etiquetada.")
+    st.subheader("🌍 ESPACIO / SEGUIMIENTO SATELITAL")
+    st.caption("Globo terrestre interactivo, foco geográfico en Uruguay y trazado de observaciones térmicas con contexto orbital. Cuando no hay TLE activo, el sistema presenta una simulación claramente identificada para mantener la experiencia visual sin confundirla con datos reales.")
 
     if df is None or df.empty:
         st.info("Cargá un conjunto de observaciones FIRMS o el maestro IGNIS para activar la capa de focos térmicos y la vista espacial.")
