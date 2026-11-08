@@ -287,11 +287,7 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           const textureLoader = new THREE.TextureLoader();
           const blueMarbleUrl = 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
           const blackMarbleUrl = 'https://threejs.org/examples/textures/planets/earth_normal_2048.jpg';
-          const earthTexture = textureLoader.load(blueMarbleUrl, undefined, undefined, () => {{
-            const fallback = textureLoader.load(blackMarbleUrl);
-            earth.material.map = fallback;
-            earth.material.needsUpdate = true;
-          }});
+          const earthTexture = textureLoader.load(blueMarbleUrl);
           const earthBump = textureLoader.load(blackMarbleUrl);
           const earth = new THREE.Mesh(
             new THREE.SphereGeometry(2.2, 96, 96),
@@ -306,6 +302,12 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             }})
           );
           earthGroup.add(earth);
+
+          earthTexture.onError = () => {{
+            const fallback = textureLoader.load(blackMarbleUrl);
+            earth.material.map = fallback;
+            earth.material.needsUpdate = true;
+          }};
 
           const atmosphere = new THREE.Mesh(
             new THREE.SphereGeometry(2.35, 96, 96),
