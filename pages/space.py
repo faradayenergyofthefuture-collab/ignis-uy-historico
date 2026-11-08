@@ -1,3 +1,4 @@
+import pandas as pd
 import streamlit as st
 
 from ignis_espacio import render_ignis_space_module
@@ -60,8 +61,6 @@ with st.spinner("Preparando la vista espacial 3D..."):
     data = st.session_state.get("combined")
     if data is None:
         data = st.session_state.get("ignis_combined")
-    if data is not None and not data.empty:
-        render_ignis_space_module(data)
-    else:
-        st.info("Primero cargá o importá un archivo de observaciones FIRMS o el maestro IGNIS para activar la vista 3D del espacio.")
-        st.caption("La ruta /space se integra con la plataforma existente sin reemplazar el resto del dashboard.")
+    if data is None:
+        data = pd.DataFrame()
+    render_ignis_space_module(data)

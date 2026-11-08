@@ -1,5 +1,6 @@
 import json
-from datetime import datetime
+import math
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
 import numpy as np
@@ -83,18 +84,31 @@ def _normalize_fire_frame(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     return frame
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_celestrak_tle(catalog_num: str) -> Optional[str]:
     url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={catalog_num}&FORMAT=TLE"
-    try:
-        response = requests.get(url, timeout=20)
-        response.raise_for_status()
-        text = response.text.strip()
-    except Exception:
+    last_error = None
+    for attempt in range(3):
+        try:
+            response = requests.get(url, timeout=20)
+            response.raise_for_status()
+            text = response.text.strip()
+            lines = [line.strip() for line in text.splitlines() if line.strip()]
+            if len(lines) >= 3:
+                return "\n".join(lines[:3])
+            if lines:
+                return None
+            return None
+        except Exception as exc:  # pragma: no cover - network fallback
+            last_error = exc
+    if last_error is not None:
         return None
-    lines = [line.strip() for line in text.splitlines() if line.strip()]
-    if len(lines) >= 3:
-        return "\n".join(lines[:3])
     return None
+
+
+def _utc_to_jd_utc(dt: datetime) -> float:
+    unix_seconds = dt.astimezone(timezone.utc).timestamp()
+    return 2440587.5 + (unix_seconds / 86400.0)
 
 
 def _generate_orbit_positions_from_tle(tle_text: str, steps: int = 80) -> List[Dict[str, float]]:
@@ -110,17 +124,30 @@ def _generate_orbit_positions_from_tle(tle_text: str, steps: int = 80) -> List[D
 
     points: List[Dict[str, float]] = []
     try:
+        ref_dt = datetime.now(timezone.utc)
         for idx in range(steps):
-            # 24h coverage using a coarse minute step while keeping the orbit broadly representative.
-            seconds = idx * 60 * 24 / max(steps - 1, 1)
-            # sgp4 expects time in minutes since epoch, but this call is intentionally conservative and
-            # falls back to simulation if the package is missing or the propagation cannot be completed.
-            position, velocity = sat.sgp4(0, seconds / 60.0)
-            if position is not None and len(position) >= 3:
-                x, y, z = position[:3]
-                lat = np.degrees(np.arcsin(z / np.linalg.norm([x, y, z])))
-                lon = np.degrees(np.arctan2(y, x))
-                points.append({"lat": float(lat), "lon": float(lon), "alt_km": float(np.linalg.norm([x, y, z]) - 6378.0)})
+            offset_minutes = idx * 24 * 60 / max(steps - 1, 1)
+            sample_dt = ref_dt + timedelta(minutes=offset_minutes)
+            jd_float = _utc_to_jd_utc(sample_dt)
+            jd_int = int(math.floor(jd_float))
+            jd_frac = jd_float - jd_int
+            error, position, _ = sat.sgp4(jd_int, jd_frac)
+            if error != 0 or position is None:
+                continue
+            x, y, z = position[:3]
+            norm = float(np.linalg.norm([x, y, z]))
+            if norm <= 0:
+                continue
+            theta = (280.46061837 + 360.98564736629 * (jd_float - 2451545.0) + 0.000387933 * ((jd_float - 2451545.0) ** 2)) % 360.0
+            r_theta = math.radians(theta)
+            x_rot = x * math.cos(r_theta) + y * math.sin(r_theta)
+            y_rot = -x * math.sin(r_theta) + y * math.cos(r_theta)
+            lat = math.degrees(math.asin(z / norm))
+            lon = math.degrees(math.atan2(y_rot, x_rot))
+            alt_km = norm - 6378.137
+            if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+                continue
+            points.append({"lat": float(lat), "lon": float(lon), "alt_km": float(alt_km)})
     except Exception:
         return []
 
@@ -141,6 +168,7 @@ def _generate_simulated_orbit(name: str, steps: int = 80) -> List[Dict[str, floa
     return [{"lat": float(lat[idx]), "lon": float(lon[idx]), "alt_km": float(700 + 35 * np.sin(angles[idx] * 2.2))} for idx in range(len(angles))]
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
 def _build_satellite_payload() -> List[Dict[str, Any]]:
     payload: List[Dict[str, Any]] = []
     for sat in SATELLITE_CATALOG:
@@ -152,7 +180,8 @@ def _build_satellite_payload() -> List[Dict[str, Any]]:
             if orbit_data:
                 mode = "real"
         if not orbit_data:
-            orbit_data = _generate_simulated_orbit(sat["name"])
+            orbit_data = []
+            mode = "histórica no disponible"
         payload.append({
             "name": sat["name"],
             "sensor": sat["sensor"],
@@ -244,9 +273,17 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           <div id="ignis-globe-status">Inicializando 3D...</div>
           <div id="globe-root"></div>
         </div>
+        <script type="importmap">
+          {{
+            "imports": {{
+              "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+              "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }}
+          }}
+        </script>
         <script type="module">
-          import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-          import {{ OrbitControls }} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+          import * as THREE from "three";
+          import {{ OrbitControls }} from "three/addons/controls/OrbitControls.js";
 
           const payload = {payload};
           const status = document.getElementById('ignis-globe-status');
@@ -523,17 +560,15 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
     st.caption("Globo terrestre interactivo, foco geográfico en Uruguay y trazado de observaciones térmicas con contexto orbital. Cuando no hay TLE activo, el sistema presenta una simulación claramente identificada para mantener la experiencia visual sin confundirla con datos reales.")
     st.status("Inicializando 3D", state="running", expanded=True)
 
-    if df is None or df.empty:
-        st.info("Cargá un conjunto de observaciones FIRMS o el maestro IGNIS para activar la capa de focos térmicos y la vista espacial.")
-        st.caption("Estado: sin datos. La vista 3D no tiene coordenadas para renderizar.")
-        return
-
     frame = _normalize_fire_frame(df)
-    if not frame.empty:
+    if df is None or df.empty:
+        st.info("Sin detecciones cargadas. La Tierra sigue disponible para rotación, zoom y navegación orbital; cargá observaciones para activar los focos térmicos.")
+        st.caption("Estado: sin datos. La capa 3D sigue visible pero no se renderizan puntos térmicos hasta cargar un archivo.")
+    elif not frame.empty:
         dates_count = len(pd.to_datetime(frame["fecha"], utc=True).dt.date.unique())
         hotspots_count = len(frame)
         sensors_count = frame["instrumento"].nunique()
-        coverage_text = "Simulación" if frame.empty else "TLE + síntesis"
+        coverage_text = "TLE + síntesis"
         st.markdown(
             f'''
             <div class="ignis-space-shell">
@@ -547,9 +582,8 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
             ''',
             unsafe_allow_html=True,
         )
-    if frame.empty:
-        st.info("El conjunto cargado no tiene coordenadas geográficas válidas para renderizar capas espaciales.")
-        return
+    elif frame.empty:
+        st.warning("El conjunto cargado no tiene coordenadas geográficas válidas para renderizar capas espaciales. El globo sigue operativo sin observaciones.")
 
     date_options = sorted(pd.to_datetime(frame["fecha"], utc=True).dt.date.unique())
     if not date_options:
