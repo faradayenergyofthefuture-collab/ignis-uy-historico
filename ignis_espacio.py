@@ -284,12 +284,23 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           const earthGroup = new THREE.Group();
           scene.add(earthGroup);
 
-          const earthTexture = new THREE.TextureLoader().load('https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg');
+          const textureLoader = new THREE.TextureLoader();
+          const blueMarbleUrl = 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
+          const blackMarbleUrl = 'https://threejs.org/examples/textures/planets/earth_normal_2048.jpg';
+          const earthTexture = textureLoader.load(blueMarbleUrl, undefined, undefined, () => {{
+            const fallback = textureLoader.load(blackMarbleUrl);
+            earth.material.map = fallback;
+            earth.material.needsUpdate = true;
+          }});
+          const earthBump = textureLoader.load(blackMarbleUrl);
           const earth = new THREE.Mesh(
             new THREE.SphereGeometry(2.2, 96, 96),
             new THREE.MeshPhongMaterial({{
               map: earthTexture,
-              shininess: 10,
+              bumpMap: earthBump,
+              bumpScale: 0.12,
+              shininess: 16,
+              color: 0xdfeeff,
               emissive: new THREE.Color(0x071a2d),
               emissiveIntensity: 0.35
             }})
@@ -392,6 +403,10 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           }};
           window.addEventListener('resize', onResize);
           onResize();
+          setTimeout(() => {{
+            onResize();
+            renderer.render(scene, camera);
+          }}, 180);
 
           function animate() {{
             requestAnimationFrame(animate);
