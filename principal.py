@@ -1,9 +1,8 @@
-import streamlit as st
+"""Compatibilidad: mantiene la app principal en ignis_historico.py.
+Este archivo no tiene lógica nueva; solo delega la ejecución al dashboard real.
+"""
 
-st.set_page_config(page_title="IGNIS UY | Principal", page_icon="🛰️", layout="wide")
+import runpy
 
-home_page = st.Page("ignis_historico.py", title="Principal", icon="🏠")
-space_page = st.Page("pages/space.py", title="Vista 3D", icon="🌍")
-
-navigation = st.navigation([home_page, space_page])
-navigation.run()
+if __name__ == "__main__":
+    runpy.run_path("ignis_historico.py", run_name="__main__")
