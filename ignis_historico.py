@@ -323,6 +323,181 @@ def mapa_ignis(datos, clave='ignis_mapa'):
     st.plotly_chart(fig,use_container_width=True,key=clave)
     st.caption('Densidad relativa ilustrativa calculada a partir de los puntos FIRMS cargados. Contorno nacional de Natural Earth (escala general): no delimita departamentos ni certifica fronteras. El mapa no representa incendios confirmados, superficies quemadas ni densidad ajustada por cobertura satelital.')
 
+SATELLITE_REFERENCE = [
+    {'name':'Terra (MODIS)','instrument':'MODIS','sensor':'MODIS','orbit':'Sun-synchronous low Earth orbit','description':'Terra carries MODIS and provides morning overpasses. The orbital path shown here is illustrative and not a live ephemeris feed.','source':'NASA Earth Observing System / MODIS'},
+    {'name':'Aqua (MODIS)','instrument':'MODIS','sensor':'MODIS','orbit':'Sun-synchronous low Earth orbit','description':'Aqua provides complementary MODIS observations with an afternoon overpass. Only the display is illustrative.','source':'NASA Earth Observing System / MODIS'},
+    {'name':'Suomi-NPP (VIIRS)','instrument':'VIIRS','sensor':'VIIRS S-NPP','orbit':'Polar orbit','description':'Suomi-NPP is a VIIRS platform used for thermal anomaly detection. Positions are simulated for the interface.','source':'NASA / NOAA / VIIRS'},
+    {'name':'NOAA-20 (VIIRS)','instrument':'VIIRS','sensor':'VIIRS NOAA-20','orbit':'Polar orbit','description':'NOAA-20 carries VIIRS and is used as a separate detection stream. The orbit shown is conceptual, not real-time.','source':'NASA / NOAA / VIIRS'},
+    {'name':'NOAA-21 (VIIRS)','instrument':'VIIRS','sensor':'VIIRS NOAA-21','orbit':'Polar orbit','description':'NOAA-21 is another VIIRS observation stream. The visualization is intentionally labelled as illustrative.','source':'NASA / NOAA / VIIRS'},
+]
+
+
+def _build_simulated_satellite_path(satellite_name, steps=80):
+    phase = {'Terra (MODIS)': 0.15, 'Aqua (MODIS)': 1.85, 'Suomi-NPP (VIIRS)': 2.7, 'NOAA-20 (VIIRS)': 4.2, 'NOAA-21 (VIIRS)': 5.1}[satellite_name]
+    angles = np.linspace(0, 2 * np.pi, steps + 1)
+    lat = 50 * np.sin(angles + phase) + 5 * np.cos(angles * 2.4)
+    lon = -180 + (angles / (2 * np.pi)) * 360
+    return pd.DataFrame({'latitude': lat, 'longitude': lon})
+
+
+def render_space_tracker(datos):
+    st.subheader('🛰️ SPACE / SATELLITE TRACKER')
+    st.caption('Illustrative orbital display only. The interface deliberately does not show live satellite ephemerides or real-time positions. It is a conceptual Earth observation panel for the IGNIS UY workflow.')
+    if datos.empty:
+        st.info('Load historical data first to enable the observation coverage and contextual summary.')
+        return
+    selected = st.selectbox('Selected satellite', options=[item['name'] for item in SATELLITE_REFERENCE], index=0)
+    sat = next(item for item in SATELLITE_REFERENCE if item['name'] == selected)
+    region = st.selectbox('Focus region', ['Uruguay', 'South America', 'Global'], index=0)
+    area = {
+        'Uruguay': {'lat': [-35.5, -29.7], 'lon': [-58.8, -52.8]},
+        'South America': {'lat': [-55, 15], 'lon': [-82, -30]},
+        'Global': {'lat': [-90, 90], 'lon': [-180, 180]},
+    }[region]
+    orbit = _build_simulated_satellite_path(selected)
+    fig = go.Figure()
+    fig.add_trace(go.Scattergeo(
+        lon=[-58.5, -53.2], lat=[-35.5, -29.7], mode='lines', fill='toself',
+        fillcolor='rgba(77, 119, 255, 0.16)', line=dict(color='#7ec8ff', width=1.5),
+        name='Uruguay observation box', hoverinfo='skip'
+    ))
+    fig.add_trace(go.Scattergeo(
+        lon=orbit['longitude'], lat=orbit['latitude'], mode='lines', line=dict(color='#8fdcff', width=2),
+        name=f'{selected} orbit (illustrative)'
+    ))
+    fig.add_trace(go.Scattergeo(
+        lon=orbit['longitude'][::10], lat=orbit['latitude'][::10], mode='markers',
+        marker=dict(size=8, color='#ffc857', symbol='circle'),
+        name='Illustrative marker'
+    ))
+    fig.update_geos(
+        projection_type='orthographic', showocean=True, oceancolor='#020b17', showland=True,
+        landcolor='#1c2d45', showcountries=True, countrycolor='#7da7ff', coastlinecolor='#7da7ff',
+        showframe=False, bgcolor='rgba(0,0,0,0)', lataxis_range=area['lat'], lonaxis_range=area['lon']
+    )
+    fig.update_layout(
+        height=560, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', y=1.08, x=0)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    st.caption(f'Observations currently in memory: {len(datos):,} records. The current panel does not convert these into live counts, and it does not claim real-time satellite positions.')
+    col1, col2 = st.columns([1.2, 2.0])
+    with col1:
+        st.markdown(f"""
+        <div style='background:linear-gradient(135deg,rgba(19,66,112,.55),rgba(26,34,67,.86));border:1px solid #7ca7ff;border-radius:18px;padding:16px 18px;min-height:210px'>
+            <div style='color:#a9c7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Selected satellite</div>
+            <div style='font-size:1.7rem;font-weight:700;color:#eff6ff;margin:10px 0 5px'>{sat['name']}</div>
+            <div style='color:#cfdfff;margin-bottom:10px'>{sat['sensor']}</div>
+            <div style='color:#9bc7ff;margin-bottom:4px'>Instrument: {sat['instrument']}</div>
+            <div style='color:#9bc7ff;margin-bottom:4px'>Orbit: {sat['orbit']}</div>
+            <div style='color:#9bc7ff'>Source: {sat['source']}</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""
+        <div style='background:linear-gradient(135deg,rgba(45,23,71,.65),rgba(16,26,53,.86));border:1px solid #d2a8ff;border-radius:18px;padding:16px 18px;min-height:210px'>
+            <div style='color:#d5b7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Satellite description</div>
+            <p style='color:#edf3ff;margin:12px 0 0;line-height:1.6'>{sat['description']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+    st.caption('The orbit and marker are intentionally labelled as conceptual. Real orbital data should be sourced from official ephemeris providers and refreshed on a documented cadence if the project later adds live tracking.')
+
+
+def _ask_ignis_answer(datos, question):
+    if datos.empty:
+        return {
+            'answer': 'No data has been loaded yet. Import or upload the NASA FIRMS archive or maestro to enable a grounded answer from the IGNIS dataset.',
+            'chart': None,
+            'sources': ['Local IGNIS dataset', 'NASA FIRMS source files']
+        }
+    q = str(question).lower()
+    qf = datos.copy()
+    qf['fecha'] = pd.to_datetime(qf['fecha'], errors='coerce', utc=True)
+    qf = qf.dropna(subset=['fecha'])
+    if 'uruguay' in q or 'uy' in q:
+        qf = qf[qf['latitude'].between(-35.5, -29.7) & qf['longitude'].between(-58.8, -52.8)]
+    if 'modis' in q and 'viirs' not in q:
+        qf = qf[qf['instrumento'].str.contains('MODIS', case=False, na=False)]
+    elif 'viirs' in q and 'modis' not in q:
+        qf = qf[qf['instrumento'].str.contains('VIIRS', case=False, na=False)]
+    if 'this month' in q:
+        month = pd.Timestamp.utcnow().to_period('M')
+        qf = qf[qf['fecha'].dt.to_period('M') == month]
+        count = len(qf)
+        answer = f'The loaded IGNIS data contains {count:,} observation records in the current month for the currently selected data slice.'
+        chart = qf.groupby(qf['fecha'].dt.day).size().reset_index(name='observations')
+        chart.columns = ['Day', 'Observations']
+        return {'answer': answer, 'chart': chart, 'sources': ['Loaded IGNIS dataset', 'NASA FIRMS archive provenance']}
+    if 'compare modis and viirs' in q or ('modis' in q and 'viirs' in q):
+        grouped = qf.groupby('instrumento').size().reset_index(name='records')
+        answer = 'This comparison uses only the loaded dataset and does not harmonize or sum detections across sensors. It is a descriptive comparison, not a calibrated fire count.'
+        return {'answer': answer, 'chart': grouped, 'sources': ['Loaded IGNIS dataset', 'Sensor provenance metadata']}
+    if 'historical' in q or 'last five years' in q:
+        grouped = qf.groupby(qf['fecha'].dt.year).size().reset_index(name='records')
+        grouped.columns = ['Year', 'Observations']
+        answer = 'Historical counts are computed directly from the loaded archive and are shown as observation counts, not confirmed fire events.'
+        return {'answer': answer, 'chart': grouped, 'sources': ['Loaded IGNIS dataset', 'Archive provenance']}
+    if 'department' in q or 'departamento' in q:
+        answer = 'Department-level aggregation is not available in the current dataset because the project loads point observations and region filters rather than a department-level administrative table.'
+        return {'answer': answer, 'chart': None, 'sources': ['Loaded IGNIS dataset', 'Project metadata']}
+    if 'frp' in q or 'fire radiative power' in q:
+        qf['frp'] = pd.to_numeric(qf.get('frp', pd.Series(np.nan, index=qf.index)), errors='coerce')
+        frp = qf['frp'].dropna()
+        if frp.empty:
+            answer = 'FRP values are unavailable in the currently loaded dataset for the requested slice.'
+        else:
+            answer = f'FRP values in the current slice span from {frp.min():,.2f} to {frp.max():,.2f} and average {frp.mean():,.2f}.'
+        return {'answer': answer, 'chart': None, 'sources': ['Loaded IGNIS dataset', 'FRP metadata']}
+    if 'activity' in q and 'month' in q:
+        month = pd.Timestamp.utcnow().to_period('M')
+        qf = qf[qf['fecha'].dt.to_period('M') == month]
+        grouped = qf.groupby('instrumento').size().reset_index(name='observations')
+        answer = f'For the current month, the loaded records break down by sensor as follows.'
+        return {'answer': answer, 'chart': grouped, 'sources': ['Loaded IGNIS dataset', 'NASA FIRMS archive provenance']}
+    count = len(qf)
+    answer = f'From the currently loaded dataset, the direct observation count for this query is {count:,}. This is a record count, not an estimate of confirmed fires or burned area.'
+    return {'answer': answer, 'chart': qf.groupby('instrumento').size().reset_index(name='records') if not qf.empty else None, 'sources': ['Loaded IGNIS dataset', 'NASA FIRMS archive provenance']}
+
+
+def render_ask_ignis(datos):
+    st.subheader('🤖 ASK IGNIS')
+    st.caption('Grounded data assistant. It answers from the loaded IGNIS dataset and clearly distinguishes observation records from modeled or inferred statistics.')
+    if 'ignis_chat_history' not in st.session_state:
+        st.session_state['ignis_chat_history'] = []
+    suggestion_questions = [
+        'How many fire hotspots were detected in Uruguay this month?',
+        'Compare MODIS and VIIRS observations.',
+        'What were the most active periods in the historical dataset?',
+        'What is the distribution of Fire Radiative Power (FRP)?',
+    ]
+    st.write('Suggested questions')
+    suggestion_cols = st.columns(len(suggestion_questions))
+    for idx, question in enumerate(suggestion_questions):
+        with suggestion_cols[idx]:
+            if st.button(question, key=f'ignis_question_{idx}', use_container_width=True):
+                st.session_state['ignis_draft_question'] = question
+    user_question = st.text_input('Ask IGNIS about the current data', value=st.session_state.get('ignis_draft_question', ''), key='ignis_draft_question_input')
+    if st.button('Send', type='primary'):
+        if user_question.strip():
+            st.session_state['ignis_chat_history'].append({'role':'user','content':user_question})
+            result = _ask_ignis_answer(datos, user_question)
+            st.session_state['ignis_chat_history'].append({'role':'assistant','content':result['answer'], 'sources': result['sources'], 'chart': result['chart']})
+    for message in st.session_state['ignis_chat_history']:
+        if message['role'] == 'user':
+            with st.chat_message('user'):
+                st.write(message['content'])
+        else:
+            with st.chat_message('assistant'):
+                st.write(message['content'])
+                if message.get('sources'):
+                    st.caption('Sources: ' + ', '.join(message['sources']))
+                chart = message.get('chart')
+                if chart is not None and not chart.empty:
+                    st.dataframe(chart, use_container_width=True, hide_index=True)
+    if not st.session_state['ignis_chat_history']:
+        st.info('Ask a question about the loaded fire dataset. The assistant will only answer from the current archive and will explicitly flag missing information.')
+
+
 def asset_uri(path, mime='image/png'):
     if not path.exists():return ''
     return f'data:{mime};base64,'+base64.b64encode(path.read_bytes()).decode('ascii')
@@ -340,7 +515,7 @@ with header_right:
     st.markdown(f'''<div class="hero"><div class="kicker">IGNIS UY · Proyecto de investigación · NASA Space Apps Challenge 2026</div><div class="hero-title">Histórico de actividad térmica</div><div class="hero-sub">Uruguay 2000–2026 · Detecciones NASA FIRMS · Comparación por instrumento</div><div class="ignis-badges"><span class="ignis-badge purple">Armonización MODIS–VIIRS (experimental)</span>{badge_nasa}{badge_ema}</div></div>''',unsafe_allow_html=True)
 
 st.info('Los registros son anomalías térmicas, no incendios confirmados. Este prototipo no proporciona alertas operativas ni mide superficies quemadas.')
-tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🔄 Armonización MODIS–VIIRS','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF','🛰️ Monitoreo reciente','🌎 Fusión cielo–tierra'])
+tabs=st.tabs(['📂 Carga de datos','📊 Resumen NASA por año','📚 Histórico 2000–2026','🔄 Armonización MODIS–VIIRS','🗺️ Mapa de Uruguay','⚠️ Alertas y trazabilidad','🗓️ Calendario final','📄 Informe PDF','🛰️ Monitoreo reciente','🛰️ SPACE / SATELLITE TRACKER','🤖 ASK IGNIS','🌎 Fusión cielo–tierra'])
 with tabs[0]:
     st.subheader('Incorporación al histórico')
     st.write('Cargá ZIP/CSV FIRMS de una o varias temporadas o consultá las detecciones NRT más recientes. Para **guardar lo acumulado entre sesiones**, descargá el **Maestro IGNIS** actualizado y volvé a importarlo la próxima vez. Los datos **no se guardan automáticamente en la nube**.')
@@ -592,9 +767,15 @@ with tabs[8]:
     from ignis_nrt import mostrar_monitoreo_nrt
     mostrar_monitoreo_nrt()
 
+with tabs[9]:
+    render_space_tracker(combined)
+
+with tabs[10]:
+    render_ask_ignis(combined)
+
 # Nueva pestaña aislada: NASA FIRMS + Bomberos/PAIF + SINAE/MIRA.
 # Utiliza el Maestro normalizado `combined` existente y no lo modifica.
-with tabs[9]:
+with tabs[11]:
     from ignis_fusion_terrestre import mostrar_fusion_terrestre
     mostrar_fusion_terrestre(combined)
 
