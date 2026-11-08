@@ -20,6 +20,7 @@ from reportlab.lib.pagesizes import A4
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from ignis_espacio import render_ignis_space_module
 
 st.set_page_config(page_title='IGNIS UY | Histórico 2000–2026',page_icon='🛰️',layout='wide',initial_sidebar_state='collapsed')
 BASE=Path(__file__).resolve().parent
@@ -341,66 +342,7 @@ def _build_simulated_satellite_path(satellite_name, steps=80):
 
 
 def render_space_tracker(datos):
-    st.subheader('🛰️ SPACE / SATÉLITE TRACKER')
-    st.caption('Visualización orbital ilustrativa únicamente. La interfaz no muestra efemérides en tiempo real ni posiciones satelitales en vivo. Es un panel conceptual de observación terrestre para el flujo de IGNIS UY.')
-    if datos.empty:
-        st.info('Primero cargá datos históricos para activar la cobertura observacional y el resumen contextual.')
-        return
-    selected = st.selectbox('Satélite seleccionado', options=[item['name'] for item in SATELLITE_REFERENCE], index=0)
-    sat = next(item for item in SATELLITE_REFERENCE if item['name'] == selected)
-    region = st.selectbox('Región de enfoque', ['Uruguay', 'Sudamérica', 'Global'], index=0)
-    area = {
-        'Uruguay': {'lat': [-35.5, -29.7], 'lon': [-58.8, -52.8]},
-        'Sudamérica': {'lat': [-55, 15], 'lon': [-82, -30]},
-        'Global': {'lat': [-90, 90], 'lon': [-180, 180]},
-    }[region]
-    orbit = _build_simulated_satellite_path(selected)
-    fig = go.Figure()
-    fig.add_trace(go.Scattergeo(
-        lon=[-58.5, -53.2], lat=[-35.5, -29.7], mode='lines', fill='toself',
-        fillcolor='rgba(77, 119, 255, 0.16)', line=dict(color='#7ec8ff', width=1.5),
-        name='Caja de observación de Uruguay', hoverinfo='skip'
-    ))
-    fig.add_trace(go.Scattergeo(
-        lon=orbit['longitude'], lat=orbit['latitude'], mode='lines', line=dict(color='#8fdcff', width=2),
-        name=f'{selected} órbita (ilustrativa)'
-    ))
-    fig.add_trace(go.Scattergeo(
-        lon=orbit['longitude'][::10], lat=orbit['latitude'][::10], mode='markers',
-        marker=dict(size=8, color='#ffc857', symbol='circle'),
-        name='Marcador ilustrativo'
-    ))
-    fig.update_geos(
-        projection_type='orthographic', showocean=True, oceancolor='#020b17', showland=True,
-        landcolor='#1c2d45', showcountries=True, countrycolor='#7da7ff', coastlinecolor='#7da7ff',
-        showframe=False, bgcolor='rgba(0,0,0,0)', lataxis_range=area['lat'], lonaxis_range=area['lon']
-    )
-    fig.update_layout(
-        height=560, margin=dict(l=10, r=10, t=10, b=10), paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)', legend=dict(orientation='h', y=1.08, x=0)
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    st.caption(f'Observaciones actualmente en memoria: {len(datos):,} registros. Este panel no convierte estos datos en conteos en vivo ni afirma posiciones satelitales en tiempo real.')
-    col1, col2 = st.columns([1.2, 2.0])
-    with col1:
-        st.markdown(f"""
-        <div style='background:linear-gradient(135deg,rgba(19,66,112,.55),rgba(26,34,67,.86));border:1px solid #7ca7ff;border-radius:18px;padding:16px 18px;min-height:210px'>
-            <div style='color:#a9c7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Satélite seleccionado</div>
-            <div style='font-size:1.7rem;font-weight:700;color:#eff6ff;margin:10px 0 5px'>{sat['name']}</div>
-            <div style='color:#cfdfff;margin-bottom:10px'>{sat['sensor']}</div>
-            <div style='color:#9bc7ff;margin-bottom:4px'>Instrumento: {sat['instrument']}</div>
-            <div style='color:#9bc7ff;margin-bottom:4px'>Órbita: {sat['orbit']}</div>
-            <div style='color:#9bc7ff'>Fuente: {sat['source']}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        st.markdown(f"""
-        <div style='background:linear-gradient(135deg,rgba(45,23,71,.65),rgba(16,26,53,.86));border:1px solid #d2a8ff;border-radius:18px;padding:16px 18px;min-height:210px'>
-            <div style='color:#d5b7ff;font-size:12px;font-weight:700;letter-spacing:2px;text-transform:uppercase'>Descripción del satélite</div>
-            <p style='color:#edf3ff;margin:12px 0 0;line-height:1.6'>{sat['description']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    st.caption('La órbita y el marcador están etiquetados como conceptuales. Si más adelante se agrega seguimiento en vivo, los datos reales deben provenir de proveedores oficiales de efemérides y actualizarse con una frecuencia documentada.')
+    render_ignis_space_module(datos)
 
 
 def _ask_ignis_answer(datos, question):
