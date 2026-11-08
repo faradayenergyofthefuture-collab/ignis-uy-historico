@@ -221,8 +221,18 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             width: 100%; height: 100%; margin: 0; overflow: hidden; background: #020812;
             font-family: Arial, sans-serif;
           }}
+          #globe-shell {{
+            position: relative; width: 100%; height: 100%; min-height: 640px; display: block; background: radial-gradient(circle at top, #071827 0%, #020812 55%, #01050a 100%);
+            border-radius: 18px; overflow: hidden;
+          }}
           #globe-root {{
             width: 100%; height: 100%; min-height: 640px; display: block; background: radial-gradient(circle at top, #071827 0%, #020812 55%, #01050a 100%);
+          }}
+          #ignis-globe-status {{
+            position: absolute; left: 16px; top: 16px; z-index: 10;
+            padding: 8px 12px; border-radius: 999px; font: 12px/1.2 Arial, sans-serif;
+            color: #dfeaff; background: rgba(8, 16, 30, 0.75); border: 1px solid rgba(110, 138, 255, 0.65);
+            backdrop-filter: blur(6px);
           }}
           canvas {{
             display: block; width: 100% !important; height: 100% !important;
@@ -230,25 +240,49 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
         </style>
       </head>
       <body>
-        <div id="globe-root"></div>
+        <div id="globe-shell">
+          <div id="ignis-globe-status">Inicializando 3D...</div>
+          <div id="globe-root"></div>
+        </div>
         <script type="module">
           import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
           import {{ OrbitControls }} from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 
           const payload = {payload};
-          const container = document.getElementById('globe-root');
-          const scene = new THREE.Scene();
-          scene.background = new THREE.Color(0x020812);
+          const status = document.getElementById('ignis-globe-status');
+          const shell = document.getElementById('globe-shell');
+          const root = document.getElementById('globe-root');
+          const setStatus = (text, level = 'info') => {{
+            status.textContent = text;
+            status.style.borderColor = level === 'error' ? 'rgba(255, 124, 124, 0.8)' : 'rgba(110, 138, 255, 0.65)';
+            status.style.color = level === 'error' ? '#ffd9d9' : '#dfeaff';
+            status.style.background = level === 'error' ? 'rgba(44, 12, 14, 0.8)' : 'rgba(8, 16, 30, 0.75)';
+          }};
 
-          const camera = new THREE.PerspectiveCamera(35, container.clientWidth / container.clientHeight, 0.1, 2000);
-          camera.position.set(0, 1.2, 6.4);
+          try {{
+            if (!window.WebGLRenderingContext) {{
+              throw new Error('WebGL no disponible en este navegador.');
+            }}
+            if (!root || !shell) {{
+              throw new Error('No existe el contenedor de la vista 3D.');
+            }}
+            if (root.clientWidth < 50 || root.clientHeight < 50) {{
+              throw new Error('El contenedor 3D tiene dimensiones inválidas.');
+            }}
 
-          const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: false }});
-          renderer.setSize(container.clientWidth, container.clientHeight);
-          renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-          container.appendChild(renderer.domElement);
+            setStatus('Cargando cartografía...');
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x020812);
 
-          const controls = new OrbitControls(camera, renderer.domElement);
+            const camera = new THREE.PerspectiveCamera(35, root.clientWidth / root.clientHeight, 0.1, 2000);
+            camera.position.set(0, 1.2, 6.4);
+
+            const renderer = new THREE.WebGLRenderer({{ antialias: true, alpha: false }});
+            renderer.setSize(root.clientWidth, root.clientHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            root.appendChild(renderer.domElement);
+
+            const controls = new OrbitControls(camera, renderer.domElement);
           controls.enableDamping = true;
           controls.dampingFactor = 0.06;
           controls.enablePan = false;
@@ -397,8 +431,8 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           controls.update();
 
           const onResize = () => {{
-            const width = container.clientWidth || 900;
-            const height = container.clientHeight || 640;
+            const width = root.clientWidth || 900;
+            const height = root.clientHeight || 640;
             camera.aspect = width / height;
             camera.updateProjectionMatrix();
             renderer.setSize(width, height);
@@ -410,6 +444,8 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             renderer.render(scene, camera);
           }}, 180);
 
+          setStatus(payload.hotspots && payload.hotspots.length ? 'Cargando detecciones...' : '3D listo');
+
           function animate() {{
             requestAnimationFrame(animate);
             earth.rotation.y += 0.0018;
@@ -418,6 +454,15 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             renderer.render(scene, camera);
           }}
           animate();
+          setStatus('3D listo');
+          }} catch (error) {{
+            console.error('IGNIS 3D error:', error);
+            const message = error && error.message ? error.message : 'Error no identificado al preparar la vista 3D.';
+            setStatus('Error 3D: ' + message, 'error');
+            if (root) {{
+              root.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;padding:2rem;color:#fce5e5;text-align:center;font:14px Arial,sans-serif;background:linear-gradient(180deg,#0b1220,#090d18);">No se pudo inicializar la vista 3D. Revisa la compatibilidad WebGL del navegador o vuelve a cargar la página.</div>';
+            }}
+          }}
         </script>
       </body>
     </html>
@@ -476,9 +521,11 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
 
     st.subheader("🌍 ESPACIO / SEGUIMIENTO SATELITAL")
     st.caption("Globo terrestre interactivo, foco geográfico en Uruguay y trazado de observaciones térmicas con contexto orbital. Cuando no hay TLE activo, el sistema presenta una simulación claramente identificada para mantener la experiencia visual sin confundirla con datos reales.")
+    st.status("Inicializando 3D", state="running", expanded=True)
 
     if df is None or df.empty:
         st.info("Cargá un conjunto de observaciones FIRMS o el maestro IGNIS para activar la capa de focos térmicos y la vista espacial.")
+        st.caption("Estado: sin datos. La vista 3D no tiene coordenadas para renderizar.")
         return
 
     frame = _normalize_fire_frame(df)
