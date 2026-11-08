@@ -472,6 +472,7 @@ section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)
 </style>""",unsafe_allow_html=True)
 
 NAV_PAGES = [
+    "✨ Inicio · Conocé IGNIS",
     "🏠 Centro de control",
     "📂 Carga de datos",
     "📊 Resumen NASA por año",
@@ -493,7 +494,14 @@ if not isinstance(combined,pd.DataFrame):
     combined=pd.DataFrame(columns=COLS)
 
 with st.sidebar:
-    st.markdown("### 🔥 IGNIS UY")
+    brand_icon, brand_title = st.columns([1, 4], vertical_alignment="center")
+    with brand_icon:
+        if (BASE / "logo_ignis.png").exists():
+            st.image(str(BASE / "logo_ignis.png"), width=44)
+        else:
+            st.markdown("🛰️")
+    with brand_title:
+        st.markdown("### IGNIS UY")
     st.caption("Análisis histórico · NASA FIRMS · Uruguay")
     current_section=st.radio("Navegación",NAV_PAGES,key="ignis_nav",
                              label_visibility="collapsed")
@@ -512,7 +520,7 @@ with st.sidebar:
     st.divider()
     st.caption("Las detecciones térmicas no son incendios confirmados.")
 
-if current_section==NAV_PAGES[0]:
+if current_section==NAV_PAGES[1]:
     brand,description=st.columns([1,8],vertical_alignment="center")
     with brand:
         if (BASE/"logo_ignis.png").exists():
@@ -523,13 +531,97 @@ if current_section==NAV_PAGES[0]:
         <h1>IGNIS UY · Centro de control</h1>
         <p>Observación térmica histórica y trazabilidad de episodios en Uruguay</p>
         </div>""",unsafe_allow_html=True)
-else:
+elif current_section != NAV_PAGES[0]:
     st.markdown(f"""<div class="ignis-topline"><div class="ignis-kicker">
        IGNIS UY · Herramientas de investigación</div>
        <h1>{current_section.split(' ',1)[1]}</h1>
        </div>""",unsafe_allow_html=True)
 
-if current_section==NAV_PAGES[1]:
+
+# Portada explicativa independiente del Centro de control.
+if current_section == NAV_PAGES[0]:
+    st.markdown("""
+    <style>
+    .ignis-welcome-hero{
+      min-height:300px;border:1px solid #416c87;border-radius:22px;
+      padding:clamp(25px,4.4vw,54px);background-color:#102139;
+      background-size:cover;background-position:center right;
+      display:flex;flex-direction:column;justify-content:center;
+      box-shadow:0 20px 45px rgba(0,0,0,.25);margin:.35rem 0 1.5rem
+    }
+    .ignis-welcome-kicker{
+      text-transform:uppercase;font-size:.77rem;font-weight:800;
+      color:#67dce6;letter-spacing:.12em;margin-bottom:.85rem
+    }
+    .ignis-welcome-hero h1{
+      font-size:clamp(2.25rem,4.8vw,3.9rem)!important;
+      line-height:1.1;margin:0 0 1rem;color:#f7fbff!important
+    }
+    .ignis-welcome-hero p{color:#d2e4f4;font-size:1.04rem;
+      line-height:1.65;max-width:690px;margin:0}
+    .ignis-welcome-card{background:#132a3f;border:1px solid #34556e;
+      border-radius:15px;padding:1.2rem;min-height:160px;margin-bottom:.5rem}
+    .ignis-welcome-card strong{font-size:1.05rem;color:#f2faff}
+    .ignis-welcome-card p{color:#bbd0df;margin:.55rem 0 0;line-height:1.55}
+    .ignis-welcome-step{border-left:3px solid #32bdd2;
+      color:#c9deec;padding:.35rem 1rem;margin:.55rem 0}
+    </style>""", unsafe_allow_html=True)
+    welcome_bg = asset_uri(BASE / "hero_espacio.jpg", "image/jpeg")
+    welcome_style = (
+        "background-image:linear-gradient(95deg,rgba(5,17,36,.98) 0%,"
+        "rgba(9,25,54,.93) 52%,rgba(12,32,65,.48) 100%),"
+        f"url('{welcome_bg}');"
+    ) if welcome_bg else ""
+    st.markdown(f"""
+    <div class="ignis-welcome-hero" style="{welcome_style}">
+      <div class="ignis-welcome-kicker">IGNIS UY · NASA Space Apps Challenge 2026</div>
+      <h1>La Tierra cuenta una historia.<br>IGNIS ayuda a interpretarla.</h1>
+      <p>Explorá la actividad térmica de Uruguay a través de observaciones
+      satelitales MODIS y VIIRS, series históricas, mapas interactivos
+      y evidencia documental. Una herramienta para investigar
+      qué observamos y qué todavía necesitamos comprobar.</p>
+    </div>""", unsafe_allow_html=True)
+    intro_actions=st.columns(3,gap="medium")
+    intro_targets=[
+        ("🗺️ Abrir Centro de control",NAV_PAGES[1]),
+        ("📂 Cargar datos",NAV_PAGES[2]),
+        ("📚 Explorar histórico",NAV_PAGES[4]),
+    ]
+    for i,(label,target) in enumerate(intro_targets):
+        with intro_actions[i]:
+            if st.button(label,type="primary" if i==0 else "secondary",
+                         use_container_width=True,key=f"ignis_intro_action_{i}"):
+                st.session_state["ignis_nav"]=target
+                st.rerun()
+    st.write("")
+    st.subheader("¿Qué podés investigar?")
+    features=[
+        ("🛰️ Satélites","Consultá observaciones NASA FIRMS y explorá los sensores MODIS y VIIRS."),
+        ("📊 Análisis histórico","Compará períodos, detectá señales inusuales e investigá coincidencias entre instrumentos."),
+        ("🧭 Fuentes y evidencia","Relacioná episodios con documentación externa sin asumir que cada foco equivale a un incendio."),
+    ]
+    for col,(label,description) in zip(st.columns(3,gap="medium"),features):
+        with col:
+            st.markdown(f'<div class="ignis-welcome-card"><strong>{label}</strong>'
+                        f'<p>{description}</p></div>',unsafe_allow_html=True)
+    st.write("")
+    st.subheader("Cómo empezar")
+    st.markdown("""
+    <div class="ignis-welcome-step"><b>01 · Importar:</b> cargá ZIP/CSV de NASA FIRMS
+    o un Maestro IGNIS anterior.</div>
+    <div class="ignis-welcome-step"><b>02 · Explorar:</b> elegí región, año y sensor;
+    usá los mapas, gráficos y el globo 3D.</div>
+    <div class="ignis-welcome-step"><b>03 · Contrastar:</b> consultá las referencias
+    documentales y las limitaciones del análisis.</div>
+    """,unsafe_allow_html=True)
+    st.info("Nota científica: las anomalías térmicas no equivalen a incendios confirmados. "
+            "La armonización MODIS–VIIRS sigue siendo experimental. La cobertura "
+            "temporal depende de los datos efectivamente importados.")
+    st.caption("Proyecto de investigación en el marco de NASA Space Apps Challenge 2026. "
+               "No constituye un servicio oficial de alertas.")
+
+
+if current_section==NAV_PAGES[2]:
     st.subheader('Incorporación al histórico')
     st.write('Cargá ZIP/CSV FIRMS de una o varias temporadas o consultá las detecciones NRT más recientes. Para **guardar lo acumulado entre sesiones**, descargá el **Maestro IGNIS** actualizado y volvé a importarlo la próxima vez. Los datos **no se guardan automáticamente en la nube**.')
     st.markdown('#### Datos en vivo')
@@ -626,7 +718,7 @@ else:
     reg = st.session_state.get('region', list(REGIONES)[0])
     sens = st.session_state.get('sensores', [])
 
-if current_section==NAV_PAGES[0]:
+if current_section==NAV_PAGES[1]:
     st.markdown('<div class="ignis-kicker">Resumen · Datos cargados</div>',unsafe_allow_html=True)
     if not combined.empty and not sample.empty:
         view=sample[sample.anio==selected] if selected is not None else sample
@@ -668,7 +760,7 @@ if current_section==NAV_PAGES[0]:
         if view.empty:
             st.markdown("Importá ZIP/CSV de NASA FIRMS o un Maestro IGNIS para empezar.")
             if st.button("📂 Ir a Carga de datos",type="primary",use_container_width=True):
-                st.session_state["ignis_nav"]=NAV_PAGES[1]
+                st.session_state["ignis_nav"]=NAV_PAGES[2]
                 st.rerun()
         else:
             counts=view.groupby("instrumento").size().sort_values()
@@ -680,7 +772,7 @@ if current_section==NAV_PAGES[0]:
             st.plotly_chart(fig,use_container_width=True,key="home_sensors")
             st.caption("Conteos observados; no equivalen a número de incendios.")
             if st.button("📚 Explorar histórico",use_container_width=True):
-                st.session_state["ignis_nav"]=NAV_PAGES[3]
+                st.session_state["ignis_nav"]=NAV_PAGES[4]
                 st.rerun()
     if not view.empty:
         st.subheader("📈 Evolución mensual del año seleccionado")
@@ -693,7 +785,7 @@ if current_section==NAV_PAGES[0]:
         st.plotly_chart(fig,use_container_width=True,key="home_monthly")
     st.caption("La ausencia de detecciones en los archivos no demuestra ausencia de incendios.")
 
-if current_section==NAV_PAGES[2]:
+if current_section==NAV_PAGES[3]:
     st.subheader('Resumen del año seleccionado · lo esencial del desafío NASA')
     if sample.empty:st.info('Cargá datos en la primera pestaña; elegí la región para generar el resumen.')
     else:
@@ -705,7 +797,7 @@ if current_section==NAV_PAGES[2]:
         st.caption('Estos números se refieren al año calendario elegido y a los archivos suministrados. No son tasas de incendios ni datos normalizados por cobertura.')
         st.download_button('Descargar CSV del año',yr[COLS].to_csv(index=False).encode('utf-8-sig'),file_name=f'IGNIS_{selected}_registros.csv')
 
-if current_section==NAV_PAGES[3]:
+if current_section==NAV_PAGES[4]:
     st.subheader('Registro histórico acumulado')
     if sample.empty:st.info('Importá el maestro o cargá ZIP de NASA FIRMS para visualizar el histórico.')
     else:
@@ -724,7 +816,7 @@ if current_section==NAV_PAGES[3]:
             st.download_button('Descargar resumen por temporada',ss.to_csv(index=False).encode('utf-8-sig'),file_name='IGNIS_temporadas.csv')
         st.warning('La existencia de registros no garantiza cobertura completa. No se comparan directamente los recuentos MODIS y VIIRS ni se estima una tendencia climática validada.')
 
-if current_section==NAV_PAGES[4]:
+if current_section==NAV_PAGES[5]:
     st.subheader('Armonización MODIS–VIIRS · módulo explicativo y comparativo')
     if sample.empty:st.info('Cargá datos históricos y seleccioná región, sensores y año para abrir la armonización.')
     else:
@@ -767,7 +859,7 @@ if current_section==NAV_PAGES[4]:
             else: st.info('No se encontraron pares dentro de estos umbrales. Podés ampliar los parámetros sin modificar los datos.')
 
 
-if current_section==NAV_PAGES[5]:
+if current_section==NAV_PAGES[6]:
     st.subheader('Mapa de detecciones térmicas de Uruguay')
     if sample.empty:st.info('Cargá datos antes de abrir el mapa.')
     else:
@@ -782,7 +874,7 @@ if current_section==NAV_PAGES[5]:
             mapa_ignis(mapped,'mapa_uy_historico_v32')
         else:st.info('No hay observaciones disponibles para ese año y región.')
 
-if current_section==NAV_PAGES[6]:
+if current_section==NAV_PAGES[7]:
     st.subheader('⚠️ Panel de vigilancia histórica · señales para revisión')
     st.markdown('''<style>
     .ignis-alerta{background:linear-gradient(110deg,#511c2b,#251629);border:2px solid #ff5265;border-radius:16px;padding:20px;margin:13px 0;box-shadow:0 0 20px rgba(255,57,86,.14)}
@@ -826,7 +918,7 @@ if current_section==NAV_PAGES[6]:
         from ignis_evidencias import mostrar_evidencias
         mostrar_evidencias(combined if len(combined) else None, int(selected))
 
-if current_section==NAV_PAGES[7]:
+if current_section==NAV_PAGES[8]:
     st.subheader('Calendario final de actividad térmica observada')
     if sample.empty:st.info('El calendario aparecerá al cargar datos.')
     else:
@@ -846,7 +938,7 @@ def construir_pdf(datos, ano, region, sensores):
     from ignis_informe import generar_informe_pdf
     return generar_informe_pdf(datos, ano, region, sensores, alertas_func=resumen_estacional)
 
-if current_section==NAV_PAGES[8]:
+if current_section==NAV_PAGES[9]:
     st.subheader('📄 Informe PDF — año seleccionado y contexto histórico')
     st.write('Generá un informe reproducible utilizando **solamente** los datos que cargaste o recuperaste mediante el Maestro IGNIS. Incluye el recorte, el año y los sensores seleccionados, más el contexto histórico disponible.')
     if sample.empty or selected is None:
@@ -869,19 +961,19 @@ if current_section==NAV_PAGES[8]:
         st.warning('Informe exploratorio: los datos de distintas plataformas no están armonizados cuantitativamente; no corresponde interpretar el total conjunto como número de incendios.')
 
 # Consulta opcional, aislada del Maestro y sin peticiones automáticas.
-if current_section==NAV_PAGES[9]:
+if current_section==NAV_PAGES[10]:
     from ignis_nrt import mostrar_monitoreo_nrt
     mostrar_monitoreo_nrt()
 
-if current_section==NAV_PAGES[10]:
+if current_section==NAV_PAGES[11]:
     render_space_tracker(combined)
 
-if current_section==NAV_PAGES[11]:
+if current_section==NAV_PAGES[12]:
     render_ask_ignis(combined)
 
 # Nueva pestaña aislada: NASA FIRMS + Bomberos/PAIF + SINAE/MIRA.
 # Utiliza el Maestro normalizado `combined` existente y no lo modifica.
-if current_section==NAV_PAGES[12]:
+if current_section==NAV_PAGES[13]:
     from ignis_fusion_terrestre import mostrar_fusion_terrestre
     mostrar_fusion_terrestre(combined)
 
