@@ -461,9 +461,10 @@ def _empty_uruguay_outline(base, key):
 
 
 def render_project_home(base, asset_uri, pages, navigate):
+    """Portada institucional A: maqueta aprobada con SVG de alta resolución."""
     logo = Path(base) / "logo_ignis.png"
     logo_markup = (f'<img src="{asset_uri(logo)}" alt="Logo IGNIS UY">'
-                   if logo.exists() else "🛰️")
+                   if logo.exists() else "◈")
     st.markdown(
         '<div class="ignis-ui-topbar"><div class="ignis-ui-wordmark">'
         f'{logo_markup}<div>IGNIS UY<small>Histórico · Uruguay</small></div></div>'
@@ -473,56 +474,76 @@ def render_project_home(base, asset_uri, pages, navigate):
         'rel="noopener noreferrer">NASA Space Apps ↗</a></div></div>',
         unsafe_allow_html=True,
     )
-    image = Path(base) / "hero_espacio.jpg"
-    url = asset_uri(image, "image/jpeg") if image.exists() else ""
+    hero_art = Path(base) / "assets" / "ignis_hero_premium.svg"
+    fallback = Path(base) / "hero_espacio.jpg"
+    if hero_art.exists():
+        url = asset_uri(hero_art, "image/svg+xml")
+    elif fallback.exists():
+        url = asset_uri(fallback, "image/jpeg")
+    else:
+        url = ""
     background = (
-        "background-image:linear-gradient(92deg,rgba(5,13,29,.98) 0%,"
-        "rgba(5,18,39,.92) 39%,rgba(6,19,43,.35) 100%),"
+        "background-image:linear-gradient(90deg,rgba(0,9,23,.62),"
+        "rgba(0,8,22,.07) 72%),"
         f"url('{url}');"
-        if url else ""
-    )
+    ) if url else ""
     st.markdown(
         f'<div class="ignis-ui-hero" style="{background}">'
-        '<div class="ignis-ui-kicker">Análisis satelital de actividad térmica en Uruguay</div>'
+        '<div class="ignis-ui-kicker">'
+        'Análisis satelital de actividad térmica en Uruguay</div>'
         '<h1>IGNIS UY<br><span>Histórico</span></h1>'
         '<p>Explorá observaciones NASA FIRMS de los sensores MODIS y VIIRS, '
         'compará períodos históricos y consultá evidencia documental para '
         'interpretar la actividad térmica del territorio uruguayo.</p>'
         '<div class="ignis-ui-hero-facts">'
-        '<span>🛰️ MODIS + VIIRS</span>'
-        '<span>🗓️ Estudio histórico 2000–2026</span>'
-        '<span>🧭 Enfoque geoespacial</span>'
+        '<span>' + _feature_icon("sat") + 'MODIS + VIIRS</span>'
+        '<span>' + _feature_icon("calendar") + 'Estudio histórico 2000–2026</span>'
+        '<span>' + _feature_icon("location") + 'Enfoque geoespacial</span>'
         '</div></div>',
         unsafe_allow_html=True,
     )
-    c1,c2,c3=st.columns([1.25,1,1],gap="medium")
-    with c1:
-        st.button("📚 Explorar histórico",type="primary",use_container_width=True,
-                  key="hero_to_history",on_click=navigate,args=(pages[4],))
-    with c2:
-        st.button("🗺️ Centro de control",use_container_width=True,
-                  key="hero_to_dashboard",on_click=navigate,args=(pages[1],))
-    with c3:
-        st.button("📂 Cargar datos",use_container_width=True,
-                  key="hero_to_upload",on_click=navigate,args=(pages[2],))
-    st.write("")
-    st.subheader("Qué podés hacer en IGNIS")
-    cards=[
-      ("🛰️ Observaciones satelitales",
-       "Explorá los registros originales y las diferencias entre los instrumentos MODIS y VIIRS."),
-      ("🗺️ Atlas científico",
-       "Localizá actividad térmica por región, fecha y sensor en los mapas del estudio."),
-      ("🛡️ Trazabilidad",
-       "Contrastá episodios con informes y fuentes externas, sin asumir que una detección confirma un incendio."),
+    left, center, right = st.columns([1.08, 1, 1], gap="medium")
+    with left:
+        st.button("Explorar histórico", type="primary", use_container_width=True,
+                  key="hero_to_history", on_click=navigate, args=(pages[4],))
+    with center:
+        st.button("Centro de control", use_container_width=True,
+                  key="hero_to_dashboard", on_click=navigate, args=(pages[1],))
+    with right:
+        st.button("Cargar datos", use_container_width=True,
+                  key="hero_to_upload", on_click=navigate, args=(pages[2],))
+    st.markdown(
+        '<h2 class="ignis-home-section-title">Qué podés hacer en IGNIS</h2>',
+        unsafe_allow_html=True,
+    )
+    cards = [
+        ("sat", "ignis-ui-card--heat", "Observaciones satelitales",
+         "Explorá los registros originales y las diferencias entre los "
+         "instrumentos MODIS y VIIRS."),
+        ("map", "ignis-ui-card--atlas", "Atlas científico",
+         "Localizá actividad térmica por región, fecha y sensor en los "
+         "mapas del estudio."),
+        ("shield", "ignis-ui-card--trace", "Trazabilidad",
+         "Contrastá episodios con informes y fuentes externas, sin asumir "
+         "que una detección confirma un incendio."),
     ]
-    for col,(title,desc) in zip(st.columns(3,gap="medium"),cards):
+    for col, (icon, variant, title, description) in zip(
+        st.columns(3, gap="medium"), cards
+    ):
         with col:
-            st.markdown(f'<div class="ignis-ui-card"><b>{title}</b>'
-                        f'<p>{desc}</p></div>',unsafe_allow_html=True)
-    st.caption("Investigación independiente en el contexto de NASA Space Apps Challenge 2026. "
-               "Las anomalías térmicas no equivalen a incendios confirmados; "
-               "la armonización sigue siendo experimental y la cobertura real "
-               "depende de los archivos suministrados.")
+            st.markdown(
+                f'<div class="ignis-ui-card {variant}">'
+                f'<div class="ignis-feature-icon">{_feature_icon(icon)}</div>'
+                f'<b>{escape(title)}</b><p>{escape(description)}</p></div>',
+                unsafe_allow_html=True,
+            )
+    st.caption(
+        "Investigación independiente en el contexto de NASA Space Apps "
+        "Challenge 2026. La imagen espacial es ilustrativa, no una "
+        "observación científica fechada. Las anomalías térmicas no equivalen "
+        "a incendios confirmados; la armonización sigue siendo experimental "
+        "y la cobertura depende de los archivos suministrados."
+    )
 
 
 def render_control_center(combined,sample,selected,base,map_fn,pages,navigate):
