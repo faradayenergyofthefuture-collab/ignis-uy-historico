@@ -338,7 +338,56 @@ def _reference_styles():
       padding:20px 22px!important;border-radius:3px!important;
       border:1px solid #28627c!important;background-color:#061c2f!important}
     .ignis-ui-card::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.64}
+
+    /* Real WebP DOM images are painted above the container's CSS fallback
+       and beneath the text. Unlike inline CSS data-URLs, <img src> mirrors
+       the existing Streamlit logo rendering path. */
+    .ignis-ui-hero,
+    .ignis-ui-card.ignis-has-background{
+      position:relative!important;isolation:isolate!important;
+      overflow:hidden!important;background-color:#06192d!important;
+    }
+    .ignis-ui-hero>.ignis-bg-image,
+    .ignis-ui-card>.ignis-bg-image{
+      display:block!important;position:absolute!important;
+      inset:0!important;width:100%!important;height:100%!important;
+      max-width:none!important;max-height:none!important;
+      object-fit:cover!important;opacity:1!important;
+      pointer-events:none!important;user-select:none!important;
+      z-index:0!important;
+    }
+    .ignis-ui-hero>.ignis-bg-image{object-position:50% 40%!important}
+    .ignis-ui-card>.ignis-bg-image{object-position:56% 52%!important}
+    /* Backdrops stay in front of the photos but BEHIND live text. */
+    .ignis-ui-hero::after{
+      content:""!important;display:block!important;position:absolute!important;
+      inset:0!important;pointer-events:none!important;
+      z-index:1!important;
+      background:linear-gradient(90deg,
+        rgba(1,8,23,.88) 0%,rgba(1,10,25,.72) 32%,
+        rgba(2,15,30,.22) 72%,rgba(2,15,30,.08) 100%)!important;
+    }
+    .ignis-ui-card.ignis-has-background::before{
+      content:""!important;display:block!important;position:absolute!important;
+      inset:0!important;pointer-events:none!important;
+      z-index:1!important;
+      background:linear-gradient(90deg,
+        rgba(2,13,29,.90) 0%,rgba(2,14,29,.75) 41%,
+        rgba(2,14,29,.31) 78%,rgba(2,14,29,.13) 100%)!important;
+    }
+    .ignis-ui-hero>:not(.ignis-bg-image),
+    .ignis-ui-card.ignis-has-background>:not(.ignis-bg-image){
+      position:relative!important;z-index:2!important;
+    }
     .ignis-ui-card.ignis-has-background::after{display:none!important}
+    @media(max-width:650px){
+      .ignis-ui-hero>.ignis-bg-image{object-position:64% 42%!important}
+      .ignis-ui-hero::after{
+        background:linear-gradient(90deg,
+          rgba(1,8,23,.91),rgba(1,8,23,.73) 55%,
+          rgba(1,8,23,.40))!important;
+      }
+    }
     .ignis-ui-card--heat::after{
       background:radial-gradient(circle at 94% 79%,#d78028 0 2px,transparent 13px),
       radial-gradient(circle at 82% 68%,#f57d28 0 3px,transparent 20px),
@@ -526,37 +575,32 @@ def _empty_uruguay_outline(base, key):
     st.plotly_chart(fig,use_container_width=True,key=key)
 
 
-def _home_image_style(path, asset_uri, role):
-    """Direct inline background, avoiding Streamlit CSS injection order.
+def _home_background_image(path, asset_uri, role):
+    """Render a REAL image element instead of a large CSS data-url.
 
-    Images are local WebP assets committed in the repository; no external CDN.
-    Use explicit !important so legacy style rules cannot restore the SVG.
+    Streamlit's Markdown rendering can treat long inline background-image
+    declarations differently from image src attributes; the existing logo
+    already uses a working <img src="data:..."> pattern.
     """
-    path = Path(path)
-    if not path.is_file():
+    image = Path(path)
+    if not image.is_file():
         return ""
-    mime = "image/webp" if path.suffix.lower() == ".webp" else (
-        "image/svg+xml" if path.suffix.lower() == ".svg" else "image/jpeg"
-    )
-    image_url = asset_uri(path, mime)
-    if role == "hero":
-        shading = (
-            "rgba(0,9,22,.89) 0%,rgba(0,11,24,.74) 33%,"
-            "rgba(0,13,29,.28) 68%,rgba(0,13,29,.08) 100%"
-        )
-        position = "center 31%"
-    else:
-        shading = (
-            "rgba(2,13,28,.96) 0%,rgba(2,14,30,.82) 42%,"
-            "rgba(2,14,29,.46) 77%,rgba(2,14,29,.23) 100%"
-        )
-        position = "center center"
+    mime = {
+        ".webp": "image/webp",
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }.get(image.suffix.lower())
+    if not mime:
+        return ""
+    uri = asset_uri(image, mime)
+    # Images are decorative; metadata / results must come from FIRMS.
+    priority = 'fetchpriority="high" loading="eager"' if role == "hero" else 'loading="lazy"'
     return (
-        f"background-image:linear-gradient(90deg,{shading}),"
-        f"url('{image_url}') !important;"
-        "background-size:cover !important;"
-        f"background-position:{position} !important;"
-        "background-repeat:no-repeat !important;"
+        f'<img class="ignis-bg-image ignis-bg-image--{role}" '
+        f'src="{uri}" alt="" aria-hidden="true" '
+        f'{priority} decoding="async">'
     )
 
 
@@ -582,9 +626,10 @@ def render_project_home(base, asset_uri, pages, navigate):
         Path(base) / "hero_espacio.jpg",
     ]
     hero_path = next((path for path in hero_candidates if path.is_file()), None)
-    background = _home_image_style(hero_path, asset_uri, "hero") if hero_path else ""
+    hero_image = _home_background_image(hero_path, asset_uri, "hero") if hero_path else ""
     st.markdown(
-        f'<div class="ignis-ui-hero" style="{background}">'
+        '<div class="ignis-ui-hero">'
+        + hero_image +
         '<div class="ignis-ui-kicker">'
         'Análisis satelital de actividad térmica en Uruguay</div>'
         '<h1>IGNIS UY<br><span>Histórico</span></h1>'
@@ -630,14 +675,15 @@ def render_project_home(base, asset_uri, pages, navigate):
         st.columns(3, gap="medium"), cards
     ):
         with col:
-            image_style = _home_image_style(
+            card_image = _home_background_image(
                 Path(base) / "assets" / filename, asset_uri, "card"
             )
             card_classes = f"ignis-ui-card {variant}"
-            if image_style:
+            if card_image:
                 card_classes += " ignis-has-background"
             st.markdown(
-                f'<div class="{card_classes}" style="{image_style}">'
+                f'<div class="{card_classes}">'
+                + card_image +
                 f'<div class="ignis-feature-icon">{_feature_icon(icon)}</div>'
                 f'<b>{escape(title)}</b><p>{escape(description)}</p></div>',
                 unsafe_allow_html=True,

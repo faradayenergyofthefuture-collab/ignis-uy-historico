@@ -49,7 +49,7 @@ class _FakeStreamlit:
 def isolate_home():
     path = ROOT / "ignis_visual.py"
     ast_tree = ast.parse(path.read_text(encoding="utf-8"))
-    names = {"_home_image_style", "render_project_home"}
+    names = {"_home_background_image", "render_project_home"}
     nodes = [copy.deepcopy(node) for node in ast_tree.body
              if isinstance(node, ast.FunctionDef) and node.name in names]
     if len(nodes) != 2:
@@ -89,16 +89,20 @@ class HomeBackgroundsTests(unittest.TestCase):
     def test_four_images_are_on_the_actual_blocks(self):
         screen = render_home()
         html = "\n".join(screen.html)
-        self.assertIn('class="ignis-ui-hero" style=', html)
-        self.assertIn('class="ignis-ui-card ignis-ui-card--heat ignis-has-background"', html)
-        self.assertIn('class="ignis-ui-card ignis-ui-card--atlas ignis-has-background"', html)
-        self.assertIn('class="ignis-ui-card ignis-ui-card--trace ignis-has-background"', html)
+        self.assertIn('class="ignis-ui-hero"><img class="ignis-bg-image ignis-bg-image--hero"', html)
+        self.assertIn('class="ignis-ui-card ignis-ui-card--heat ignis-has-background"><img ', html)
+        self.assertIn('class="ignis-ui-card ignis-ui-card--atlas ignis-has-background"><img ', html)
+        self.assertIn('class="ignis-ui-card ignis-ui-card--trace ignis-has-background"><img ', html)
         for name in IMAGES.values():
             with self.subTest(asset=name):
                 self.assertEqual(html.count("base64," + name), 1)
         self.assertNotIn("base64,ignis_hero_premium.svg", html)
         self.assertNotIn("base64,hero_espacio.jpg", html)
-        self.assertIn("background-size:cover !important;", html)
+        self.assertEqual(html.count('class="ignis-bg-image '), 4)
+        self.assertIn('aria-hidden="true"', html)
+        self.assertIn('loading="eager"', html)
+        self.assertIn('loading="lazy"', html)
+        self.assertNotIn("background-image:linear-gradient(", html)
 
     def test_missing_images_fallback_to_svg_then_old_jpg(self):
         with TemporaryDirectory() as temp:
@@ -117,9 +121,10 @@ class HomeBackgroundsTests(unittest.TestCase):
         self.assertNotIn("upload.wikimedia.org", self.source)
         self.assertNotIn("Black_Marble_Americas.jpg", self.source)
         self.assertIn("image/webp", self.source)
-        self.assertIn("background-position:", self.source)
-        self.assertIn("background-repeat:no-repeat !important;", self.source)
-        self.assertNotIn("def _apply_local_home_backgrounds", self.source)
+        self.assertIn("object-fit:cover!important;", self.source)
+        self.assertIn("z-index:2!important;", self.source)
+        self.assertIn("def _home_background_image", self.source)
+        self.assertNotIn("def _home_image_style", self.source)
 
     def test_scientific_disclaimer_and_legacy_fallback(self):
         self.assertIn("La escena espacial es ilustrativa.", self.source)
@@ -127,6 +132,22 @@ class HomeBackgroundsTests(unittest.TestCase):
         self.assertIn('"ignis_hero_premium.svg"', self.source)
         self.assertIn("def render_scientific_atlas", self.source)
         self.assertIn("def render_control_center", self.source)
+
+
+    def test_background_elements_use_actual_img_src_not_css_url(self):
+        page = render_home()
+        markup = "\n".join(page.html)
+        self.assertEqual(markup.count('class="ignis-bg-image'), 4)
+        for image_name in IMAGES.values():
+            self.assertIn("src=\"data:image/webp;base64," + image_name + "\"", markup)
+        self.assertNotIn('style="background-image:', markup)
+
+    def test_decorative_images_are_below_text(self):
+        self.assertIn("z-index:0!important;", self.source)
+        self.assertIn("z-index:1!important;", self.source)
+        self.assertIn("z-index:2!important;", self.source)
+        self.assertIn(".ignis-ui-hero>:not(.ignis-bg-image)", self.source)
+        self.assertIn(".ignis-ui-card.ignis-has-background>:not(.ignis-bg-image)", self.source)
 
     def test_buttons_keep_navigation_callbacks(self):
         screen = render_home()
