@@ -27,7 +27,8 @@ def extract_preparar_aporte():
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     node = next(n for n in tree.body if isinstance(n, ast.FunctionDef)
                 and n.name == "preparar_aporte")
-    env = {"urlencode": __import__("urllib.parse", fromlist=["urlencode"]).urlencode}
+    env = {"urlencode": __import__("urllib.parse", fromlist=["urlencode"]).urlencode,
+           "ISSUES_URL": "https://github.com/sarapcoffee/ignis-uy-historico/issues"}
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(path), "exec"), env)
     return env["preparar_aporte"]
 
