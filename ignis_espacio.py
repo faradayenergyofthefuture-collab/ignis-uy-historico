@@ -430,9 +430,9 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
                 'vec3 rgb=mix(nightLit,dayLit,light);' +
                 'if(mode==1)rgb=day*0.95;' +
                 'if(mode==2)rgb=night*1.70+day*0.015;' +
-                'gl_FragColor=vec4(rgb,1.0);\n' +
-                '#include <tonemapping_fragment>\n' +
-                '#include <colorspace_fragment>\n' +
+                'gl_FragColor=vec4(rgb,1.0);\\n' +
+                '#include <tonemapping_fragment>\\n' +
+                '#include <colorspace_fragment>\\n' +
                 '}}'
             }})
           );
