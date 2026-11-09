@@ -1,0 +1,31 @@
+name: IGNIS approved landing design checks
+
+on:
+  push:
+    branches:
+      - feature/ignis-landing-reference-premium-20261109
+  pull_request:
+    paths:
+      - "ignis_visual.py"
+      - "ignis_historico.py"
+      - "assets/ignis_hero_premium.svg"
+      - "tests/test_ignis_approved_landing.py"
+      - ".github/workflows/ignis-approved-landing.yml"
+
+jobs:
+  landing-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile Python
+        run: python -m compileall -q ignis_visual.py ignis_historico.py
+      - name: Test approved landing structure
+        run: python -m unittest discover -s tests -p 'test_ignis_approved_landing.py' -v
+      - name: Existing visual regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_ignis_visual.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_premium_layout.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_premium_sidebar.py' -v
