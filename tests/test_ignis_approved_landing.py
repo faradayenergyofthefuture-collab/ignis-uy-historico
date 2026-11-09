@@ -28,7 +28,9 @@ class PremiumLandingReferenceTests(unittest.TestCase):
 
     def test_hero_uses_new_artwork(self):
         self.assertIn("ignis_hero_premium.svg",self.visual)
-        self.assertIn('asset_uri(hero_art, "image/svg+xml")',self.visual)
+        self.assertIn('Path(base) / "assets" / "bg_portada.webp"',self.visual)
+        self.assertIn('Path(base) / "assets" / "ignis_hero_premium.svg"',self.visual)
+        self.assertIn('_home_image_style(hero_path, asset_uri, "hero")',self.visual)
         self.assertIn("La escena espacial es ilustrativa",self.visual)
 
     def test_three_buttons_keep_callbacks(self):
