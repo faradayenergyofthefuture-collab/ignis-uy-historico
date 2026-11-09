@@ -685,9 +685,9 @@ def render_project_home(base, asset_uri, pages, navigate):
             )
     st.caption(
         "Investigación independiente en el contexto de NASA Space Apps "
-        "Challenge 2026. Los fondos visuales son ilustraciones digitales "
-        "de referencia, no fotografías satelitales fechadas ni validaciones "
-        "de incendios. Las anomalías térmicas no equivalen "
+        "Challenge 2026. La escena espacial es ilustrativa. Los fondos "
+        "son ilustraciones digitales, no fotografías satelitales fechadas "
+        "ni validaciones de incendios. Las anomalías térmicas no equivalen "
         "a incendios confirmados; la armonización sigue siendo experimental "
         "y la cobertura depende de los archivos suministrados."
     )
