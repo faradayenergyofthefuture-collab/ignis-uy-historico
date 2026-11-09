@@ -1,0 +1,29 @@
+name: IGNIS ASK Español y aportes
+
+on:
+  push:
+    branches:
+      - feature/ignis-ask-espanol-team-feedback-20261109
+  pull_request:
+    paths:
+      - "ignis_historico.py"
+      - "ignis_ask.py"
+      - "ignis_feedback.py"
+      - ".github/ISSUE_TEMPLATE/team-ignis-aporte.md"
+      - "tests/test_ignis_ask_feedback.py"
+      - ".github/workflows/ignis-ask-feedback.yml"
+
+jobs:
+  ask-and-feedback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install data analysis dependency
+        run: python -m pip install "pandas>=2.0"
+      - name: Syntax check
+        run: python -m compileall -q ignis_historico.py ignis_ask.py ignis_feedback.py
+      - name: Spanish assistant and contributions regression tests
+        run: python -m unittest discover -s tests -p 'test_ignis_ask_feedback.py' -v
