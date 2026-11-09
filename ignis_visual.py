@@ -432,16 +432,7 @@ def _reference_styles():
     .ignis-ui-hero{
       min-height:423px!important;background-position:center center!important;
     }
-    /* Composición fotográfica NASA / VIIRS para complementar la ilustración.
-       Carga progresiva: si falla el recurso remoto queda el SVG local. */
-    .ignis-ui-hero::before{
-      content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
-      background-image:url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Black_Marble_Americas.jpg/1280px-Black_Marble_Americas.jpg');
-      background-repeat:no-repeat;background-position:78% 57%;
-      background-size:auto 158%;opacity:.55;mix-blend-mode:screen;
-      -webkit-mask-image:linear-gradient(90deg,transparent 30%,black 60%,black 94%);
-      mask-image:linear-gradient(90deg,transparent 30%,black 60%,black 94%);
-    }
+    /* Los fondos de portada se cargan localmente en render_project_home. */
     /* Chip/icono de sección: HUD discreto, no más tarjetas infladas. */
     .ignis-ui-card{min-height:205px!important}
     .ignis-ui-topbar{background:rgba(2,13,25,.98)!important}
@@ -534,6 +525,85 @@ def _empty_uruguay_outline(base, key):
     st.plotly_chart(fig,use_container_width=True,key=key)
 
 
+def _apply_local_home_backgrounds(base, asset_uri):
+    """Cargar los cuatro fondos locales de IGNIS de una sola vez.
+
+    WebP optimizados, sin red/CDN. Si falta alguno, el componente conserva
+    su diseño y fondo anteriores. Las imágenes son artísticas, no evidencia FIRMS.
+    """
+    assets = {
+        "hero": "bg_portada.webp",
+        "observaciones": "bg_observaciones.webp",
+        "atlas": "bg_atlas.webp",
+        "trazabilidad": "bg_trazabilidad.webp",
+    }
+    uris = {}
+    for key, filename in assets.items():
+        image_path = Path(base) / "assets" / filename
+        if image_path.is_file():
+            uris[key] = asset_uri(image_path, "image/webp")
+
+    rules = []
+    if "hero" in uris:
+        rules.append(
+            ".ignis-ui-hero {"
+            "background-image:linear-gradient(90deg,"
+            "rgba(1,9,22,.88) 0%,rgba(1,11,25,.71) 36%,"
+            "rgba(1,12,27,.26) 70%,rgba(1,12,27,.12) 100%),"
+            f"url('{uris['hero']}')!important;"
+            "background-position:center 15%!important;"
+            "background-repeat:no-repeat!important;"
+            "background-size:cover!important;"
+            "}"
+        )
+
+    card_rules = {
+        "observaciones": (
+            ".ignis-ui-card.ignis-ui-card--heat", "center 51%"
+        ),
+        "atlas": (
+            ".ignis-ui-card.ignis-ui-card--atlas", "center 54%"
+        ),
+        "trazabilidad": (
+            ".ignis-ui-card.ignis-ui-card--trace", "center 51%"
+        ),
+    }
+    for key, (selector, position) in card_rules.items():
+        if key not in uris:
+            continue
+        rules.append(
+            f"{selector} {{"
+            "background-image:linear-gradient(100deg,"
+            "rgba(2,13,28,.94) 0%,rgba(2,14,28,.78) 43%,"
+            "rgba(2,14,28,.38) 74%,rgba(2,14,28,.23) 100%),"
+            f"url('{uris[key]}')!important;"
+            f"background-position:{position}!important;"
+            "background-size:cover!important;"
+            "background-repeat:no-repeat!important;"
+            "}"
+            f"{selector}::after {{display:none!important;}}"
+        )
+
+    if rules:
+        # La regla se limita al Inicio y tiene prioridad sobre la decoración
+        # CSS anterior de las tarjetas, sin alterar filtros ni otras páginas.
+        st.markdown(
+            "<style>" + "\n".join(rules) + """
+            @media(max-width:650px){
+              .ignis-ui-hero{
+                background-position:64% 18%!important;
+                min-height:425px!important;
+              }
+              .ignis-ui-card{
+                min-height:195px!important;
+              }
+            }
+            </style>""",
+            unsafe_allow_html=True,
+        )
+    return uris
+
+
 def render_project_home(base, asset_uri, pages, navigate):
     """Portada institucional A: maqueta aprobada con SVG de alta resolución."""
     logo = Path(base) / "logo_ignis.png"
@@ -548,6 +618,8 @@ def render_project_home(base, asset_uri, pages, navigate):
         'rel="noopener noreferrer">NASA Space Apps ↗</a></div></div>',
         unsafe_allow_html=True,
     )
+    # Antes de renderizar la portada, aplicar los cuatro fondos WebP locales.
+    _apply_local_home_backgrounds(base, asset_uri)
     hero_art = Path(base) / "assets" / "ignis_hero_premium.svg"
     fallback = Path(base) / "hero_espacio.jpg"
     if hero_art.exists():
@@ -613,9 +685,9 @@ def render_project_home(base, asset_uri, pages, navigate):
             )
     st.caption(
         "Investigación independiente en el contexto de NASA Space Apps "
-        "Challenge 2026. Imagen nocturna: NASA Earth Observatory / Suomi NPP VIIRS " 
-        "(composición 2012, Wikimedia Commons). La escena espacial es ilustrativa, no una "
-        "observación científica fechada. Las anomalías térmicas no equivalen "
+        "Challenge 2026. Los fondos visuales son ilustraciones digitales "
+        "de referencia, no fotografías satelitales fechadas ni validaciones "
+        "de incendios. Las anomalías térmicas no equivalen "
         "a incendios confirmados; la armonización sigue siendo experimental "
         "y la cobertura depende de los archivos suministrados."
     )
