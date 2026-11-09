@@ -380,13 +380,78 @@ def _reference_styles():
     section[data-testid="stSidebar"] div[role="radiogroup"] label:focus-within{
       outline:2px solid #33ddec!important;outline-offset:2px!important;
     }
+    /* Reemplaza los controles radio por navegación real con 15 botones:
+       iconos específicos y sin círculos de selección. */
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button{
+      position:relative!important;display:flex!important;align-items:center!important;
+      justify-content:flex-start!important;gap:9px!important;
+      background:transparent!important;border:1px solid transparent!important;
+      border-radius:3px!important;box-shadow:none!important;
+      color:#d6e9f2!important;font-weight:500!important;font-size:.84rem!important;
+      min-height:37px!important;width:100%!important;
+      padding:7px 10px 7px 48px!important;text-align:left!important;
+      transition:background-color .14s ease,border-color .14s ease!important;
+    }
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button p{
+      text-align:left!important;line-height:1.25!important;
+      white-space:normal!important;color:inherit!important;
+      font-weight:inherit!important;font-size:.84rem!important;
+    }
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button::before{
+      content:""!important;display:block!important;position:absolute!important;
+      left:14px;top:50%;transform:translateY(-50%);
+      width:21px;height:21px;background:#bcd9e9!important;
+      -webkit-mask-position:center;-webkit-mask-repeat:no-repeat;-webkit-mask-size:contain;
+      mask-position:center;mask-repeat:no-repeat;mask-size:contain;
+    }
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button::after{
+      display:none!important;
+    }
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button[kind="primary"],
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button[data-testid="stBaseButton-primary"]{
+      background:linear-gradient(90deg,rgba(3,137,165,.51),rgba(8,53,80,.48))!important;
+      border:1px solid #21cce4!important;
+      box-shadow:inset 3px 0 #20f0f1,0 0 15px rgba(16,205,225,.10)!important;
+      color:#ffffff!important;font-weight:740!important;
+    }
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button[kind="primary"]::before{
+      background:#51f6fb!important;
+    }
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button:hover{
+      background:rgba(20,91,119,.28)!important;border-color:rgba(48,190,213,.43)!important;
+    }
+    section[data-testid="stSidebar"] div[class*="st-key-ignis_nav_"] button:focus-visible{
+      outline:2px solid #36e9f6!important;outline-offset:2px!important;
+    }
+    .ignis-ui-hero h1{
+      -webkit-text-fill-color:#f8fbff!important;background:none!important;
+    }
+    .ignis-ui-hero h1 span{
+      -webkit-text-fill-color:transparent!important;
+    }
+    .ignis-ui-hero{
+      min-height:423px!important;background-position:center center!important;
+    }
+    /* Composición fotográfica NASA / VIIRS para complementar la ilustración.
+       Carga progresiva: si falla el recurso remoto queda el SVG local. */
+    .ignis-ui-hero::before{
+      content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+      background-image:url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Black_Marble_Americas.jpg/1280px-Black_Marble_Americas.jpg');
+      background-repeat:no-repeat;background-position:78% 57%;
+      background-size:auto 158%;opacity:.55;mix-blend-mode:screen;
+      -webkit-mask-image:linear-gradient(90deg,transparent 30%,black 60%,black 94%);
+      mask-image:linear-gradient(90deg,transparent 30%,black 60%,black 94%);
+    }
+    /* Chip/icono de sección: HUD discreto, no más tarjetas infladas. */
+    .ignis-ui-card{min-height:205px!important}
+    .ignis-ui-topbar{background:rgba(2,13,25,.98)!important}
     @media(max-width:900px){.ignis-ui-hero{min-height:385px!important;padding:27px!important}.ignis-ui-hero h1{font-size:clamp(2.7rem,8vw,4rem)!important}}
     @media(max-width:600px){.ignis-ui-hero{min-height:410px!important}.ignis-ui-hero::after{background:linear-gradient(90deg,#001023d9,#00102388)}.ignis-ui-hero-facts{gap:5px!important}.ignis-ui-hero-facts span{font-size:.69rem!important;padding:7px!important}.ignis-ui-card{min-height:164px!important}}
     </style>"""
     strokes = [
       '<path d="m3 10 9-7 9 7v10h-6v-6H9v6H3z"/>',
-      '<path d="m12 3 9 5-9 5-9-5 9-5zm-9 10 9 5 9-5M3 17l9 5 9-5"/>',
-      '<path d="M3 7h7l2 2h9v11H3z"/>',
+      '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
+      '<path d="M5 18H4a3 3 0 0 1-.5-5.96A7 7 0 0 1 17 8a5 5 0 0 1 3 9h-2M12 13v8m0-8-4 4m4-4 4 4"/>',
       '<path d="M4 19V10m5 9V4m5 15v-8m5 8V7"/>',
       '<path d="m3 17 6-7 4 4 7-9M15 5h5v5"/>',
       '<path d="M8 8a4 4 0 0 1 7-2l2 2m0-3v3h-3M16 16a4 4 0 0 1-7 2l-2-2m0 3v-3h3"/>',
@@ -394,8 +459,8 @@ def _reference_styles():
       '<path d="M12 3 2 21h20L12 3zM12 9v5m0 4h.01"/>',
       '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
       '<path d="M6 2h9l5 5v15H6zM15 2v6h5M9 12h8M9 16h8"/>',
-      '<path d="M12 19a7 7 0 1 0-7-7M12 8v4l3 2M4 20h.01"/>',
-      '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+      '<path d="M2 12h4l3-7 4 14 3-7h6"/>',
+      '<rect x="8" y="7" width="8" height="10" rx="2"/><path d="m8 9-5-5-2 2 5 5m10-2 5-5 2 2-5 5m-9 5-6 4m13-4 6 4M12 3v4m0 10v4"/>',
       '<path d="M4 5h16v13H9l-5 4V5zM8 10h8m-8 4h5"/>',
       '<path d="m3 9 9-6 9 6-9 6zM3 15l9 6 9-6M3 12l9 6 9-6"/>',
       '<path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 20v-2a4 4 0 0 0-3-3.9M16 2.1a4 4 0 0 1 0 7.8"/>',
@@ -406,11 +471,9 @@ def _reference_styles():
                'stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
                + shape + '</svg>')
         url = quote(svg, safe="")
-        # Cada opción suele estar envuelta por un div; nth-child aplicado
-        # directamente al label emparejaba siempre la primera etiqueta.
-        wrapper = ('section[data-testid="stSidebar"] div[role="radiogroup"]')
-        selector = (f'{wrapper} > div:nth-child({i}) label::after, '
-                    f'{wrapper} > label:nth-child({i})::after')
+        # Estilo por clave estable: no depende del DOM interno de Streamlit.
+        selector = (f'section[data-testid="stSidebar"] '
+                    f'div.st-key-ignis_nav_{i - 1:02d} button::before')
         icons.append(f'<style>{selector}{{-webkit-mask-image:url("data:image/svg+xml,{url}");'
                      f'mask-image:url("data:image/svg+xml,{url}");}}</style>')
     for key, shape in (
@@ -550,7 +613,8 @@ def render_project_home(base, asset_uri, pages, navigate):
             )
     st.caption(
         "Investigación independiente en el contexto de NASA Space Apps "
-        "Challenge 2026. La imagen espacial es ilustrativa, no una "
+        "Challenge 2026. Imagen nocturna: NASA Earth Observatory / Suomi NPP VIIRS " 
+        "(composición 2012, Wikimedia Commons). La escena espacial es ilustrativa, no una "
         "observación científica fechada. Las anomalías térmicas no equivalen "
         "a incendios confirmados; la armonización sigue siendo experimental "
         "y la cobertura depende de los archivos suministrados."
