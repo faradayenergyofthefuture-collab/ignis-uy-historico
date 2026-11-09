@@ -1,0 +1,29 @@
+name: IGNIS icon mapping and hero checks
+
+on:
+  push:
+    branches:
+      - fix/ignis-sidebar-icons-realistic-hero-20261109
+  pull_request:
+    paths:
+      - "ignis_visual.py"
+      - "assets/ignis_hero_premium.svg"
+      - "tests/test_ignis_icon_hero.py"
+      - ".github/workflows/ignis-icon-hero.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate syntax
+        run: python -m compileall -q ignis_visual.py ignis_historico.py
+      - name: Test all 15 icon bindings and SVG
+        run: python -m unittest discover -s tests -p 'test_ignis_icon_hero.py' -v
+      - name: Existing UI regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_ignis_approved_landing.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_premium_sidebar.py' -v

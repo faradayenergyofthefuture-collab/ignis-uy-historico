@@ -371,7 +371,15 @@ def _reference_styles():
     section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked){background:linear-gradient(90deg,#0d4a61b5,#0b28404d)!important;border-color:#287e91!important}
     section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)::before{top:0!important;bottom:0!important;width:4px!important;border-radius:0!important}
     section[data-testid="stSidebar"] div[role="radiogroup"] label [data-testid="stMarkdownContainer"] p{font-size:.86rem!important;color:#e0f0f5!important}
-    section[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child:has(input[type=radio]){width:1px!important;height:1px!important;position:absolute!important;overflow:hidden!important;opacity:0!important}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child:has(input[type=radio]),
+    section[data-testid="stSidebar"] div[role="radiogroup"] label[data-baseweb="radio"] > div:first-child{
+      width:1px!important;height:1px!important;position:absolute!important;
+      clip-path:inset(50%)!important;overflow:hidden!important;opacity:0!important;
+      pointer-events:none!important;
+    }
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:focus-within{
+      outline:2px solid #33ddec!important;outline-offset:2px!important;
+    }
     @media(max-width:900px){.ignis-ui-hero{min-height:385px!important;padding:27px!important}.ignis-ui-hero h1{font-size:clamp(2.7rem,8vw,4rem)!important}}
     @media(max-width:600px){.ignis-ui-hero{min-height:410px!important}.ignis-ui-hero::after{background:linear-gradient(90deg,#001023d9,#00102388)}.ignis-ui-hero-facts{gap:5px!important}.ignis-ui-hero-facts span{font-size:.69rem!important;padding:7px!important}.ignis-ui-card{min-height:164px!important}}
     </style>"""
@@ -398,8 +406,11 @@ def _reference_styles():
                'stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
                + shape + '</svg>')
         url = quote(svg, safe="")
-        selector = (f'section[data-testid="stSidebar"] div[role="radiogroup"] '
-                    f'label:nth-child({i})::after')
+        # Cada opción suele estar envuelta por un div; nth-child aplicado
+        # directamente al label emparejaba siempre la primera etiqueta.
+        wrapper = ('section[data-testid="stSidebar"] div[role="radiogroup"]')
+        selector = (f'{wrapper} > div:nth-child({i}) label::after, '
+                    f'{wrapper} > label:nth-child({i})::after')
         icons.append(f'<style>{selector}{{-webkit-mask-image:url("data:image/svg+xml,{url}");'
                      f'mask-image:url("data:image/svg+xml,{url}");}}</style>')
     for key, shape in (
