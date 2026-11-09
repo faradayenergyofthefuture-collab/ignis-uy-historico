@@ -520,6 +520,9 @@ with st.sidebar:
     current_section = st.radio(
         "Navegación", NAV_PAGES, key="ignis_nav",
         label_visibility="collapsed",
+        # Mantener los valores originales para callbacks y estado persistente,
+        # pero mostrar textos limpios: los iconos se dibujan con SVG en CSS.
+        format_func=lambda page: page.split(" ", 1)[1] if " " in page else page,
     )
     st.markdown('<div class="ignis-side-section-title">FILTROS DE ANÁLISIS</div>',
                 unsafe_allow_html=True)
