@@ -29,7 +29,7 @@ class PremiumLandingReferenceTests(unittest.TestCase):
     def test_hero_uses_new_artwork(self):
         self.assertIn("ignis_hero_premium.svg",self.visual)
         self.assertIn('asset_uri(hero_art, "image/svg+xml")',self.visual)
-        self.assertIn("La imagen espacial es ilustrativa",self.visual)
+        self.assertIn("La escena espacial es ilustrativa",self.visual)
 
     def test_three_buttons_keep_callbacks(self):
         for key in ["hero_to_history","hero_to_dashboard","hero_to_upload"]:
@@ -38,18 +38,17 @@ class PremiumLandingReferenceTests(unittest.TestCase):
         self.assertIn("on_click=navigate",self.visual)
 
     def test_sidebar_values_do_not_change(self):
-        self.assertIn('"Navegación", NAV_PAGES, key="ignis_nav"',self.main)
-        self.assertIn('format_func=lambda page: page.split(" ", 1)[1]',self.main)
+        self.assertIn('st.session_state.setdefault("ignis_nav", NAV_PAGES[0])',self.main)
+        self.assertIn('key=f"ignis_nav_{i:02d}"',self.main)
         self.assertIn("def _ignis_navigate_to(section: str)",self.main)
-        self.assertEqual(self.main.count('key="ignis_nav"'),1)
+        self.assertNotIn("current_section = st.radio(",self.main)
 
     def test_line_icons_and_accessibility(self):
         self.assertIn("def _reference_styles",self.visual)
         self.assertIn("def _feature_icon",self.visual)
-        self.assertIn("label:nth-child(",self.visual)
-        self.assertIn("label:focus-within",self.visual)
+        self.assertIn("div.st-key-ignis_nav_{i - 1:02d} button::before",self.visual)
+        self.assertIn("button:focus-visible",self.visual)
         self.assertIn('st.markdown(_reference_styles(),unsafe_allow_html=True)',self.visual)
-        self.assertIn("label_visibility=\"collapsed\"",self.main)
 
     def test_visual_matches_reference_structure(self):
         for class_name in [

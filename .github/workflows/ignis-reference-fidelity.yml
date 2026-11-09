@@ -1,0 +1,34 @@
+name: IGNIS reference fidelity
+
+on:
+  push:
+    branches:
+      - fix/ignis-reference-fidelity-20261109
+  pull_request:
+    paths:
+      - "ignis_historico.py"
+      - "ignis_visual.py"
+      - "tests/test_ignis_reference_fidelity.py"
+      - "tests/test_ignis_icon_hero.py"
+      - "tests/test_ignis_approved_landing.py"
+      - "tests/test_ignis_premium_sidebar.py"
+      - ".github/workflows/ignis-reference-fidelity.yml"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Python syntax
+        run: python -m compileall -q ignis_historico.py ignis_visual.py
+      - name: New reference-fidelity and legacy UI regressions
+        run: |
+          python -m unittest discover -s tests -p 'test_ignis_reference_fidelity.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_icon_hero.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_approved_landing.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_premium_sidebar.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_premium_layout.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_visual.py' -v

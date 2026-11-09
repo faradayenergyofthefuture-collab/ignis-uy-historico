@@ -515,15 +515,23 @@ with st.sidebar:
     )
     st.markdown('<div class="ignis-side-section-title">NAVEGACIÓN</div>',
                 unsafe_allow_html=True)
-    # Mantener un único st.radio y la misma clave evita perder estados y
-    # conserva los callbacks de navegación entre las páginas existentes.
-    current_section = st.radio(
-        "Navegación", NAV_PAGES, key="ignis_nav",
-        label_visibility="collapsed",
-        # Mantener los valores originales para callbacks y estado persistente,
-        # pero mostrar textos limpios: los iconos se dibujan con SVG en CSS.
-        format_func=lambda page: page.split(" ", 1)[1] if " " in page else page,
-    )
+    # El botón de cada sección tiene una clave única. No dependemos de la
+    # estructura interna de st.radio ni de nth-child: se eliminan las casitas
+    # duplicadas y los controles circulares visibles.
+    st.session_state.setdefault("ignis_nav", NAV_PAGES[0])
+    if st.session_state["ignis_nav"] not in NAV_PAGES:
+        _ignis_navigate_to(NAV_PAGES[0])
+    current_section = st.session_state["ignis_nav"]
+    for i, section in enumerate(NAV_PAGES):
+        clean_label = section.split(" ", 1)[1] if " " in section else section
+        st.button(
+            clean_label,
+            key=f"ignis_nav_{i:02d}",
+            type="primary" if current_section == section else "secondary",
+            use_container_width=True,
+            on_click=_ignis_navigate_to,
+            args=(section,),
+        )
     st.markdown('<div class="ignis-side-section-title">FILTROS DE ANÁLISIS</div>',
                 unsafe_allow_html=True)
     if not combined.empty:

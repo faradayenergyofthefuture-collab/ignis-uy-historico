@@ -22,9 +22,9 @@ class PremiumSidebarTests(unittest.TestCase):
                 ast.parse((ROOT / filename).read_text(encoding="utf-8"))
 
     def test_navigation_state_stays_the_same(self):
-        self.assertEqual(self.main.count('key="ignis_nav"'), 1)
-        self.assertIn('current_section = st.radio(', self.main)
-        self.assertIn('"Navegación", NAV_PAGES', self.main)
+        self.assertIn('st.session_state.setdefault("ignis_nav", NAV_PAGES[0])', self.main)
+        self.assertIn('key=f"ignis_nav_{i:02d}"', self.main)
+        self.assertIn('on_click=_ignis_navigate_to', self.main)
         self.assertIn("def _ignis_navigate_to(section: str)", self.main)
 
     def test_filters_still_use_existing_keys(self):
@@ -41,10 +41,10 @@ class PremiumSidebarTests(unittest.TestCase):
 
     def test_premium_navigation_and_keyboard_focus(self):
         self.assertIn(".ignis-side-brand", self.visual)
-        self.assertIn("label:has(input:checked)::before", self.visual)
-        self.assertIn("label:focus-within", self.visual)
-        self.assertIn("pointer-events:none!important;", self.visual)
-        self.assertIn("label_visibility=\"collapsed\"", self.main)
+        self.assertIn('div[class*="st-key-ignis_nav_"] button[kind="primary"]', self.visual)
+        self.assertIn('button:focus-visible', self.visual)
+        self.assertIn("pointer-events:none", self.visual)
+        self.assertNotIn("st.radio(", self.main)
 
     def test_no_duplicate_sidebar_rules_from_legacy_theme(self):
         self.assertNotIn("section[data-testid=\"stSidebar\"] div[role=\"radiogroup\"] label{", self.main)
