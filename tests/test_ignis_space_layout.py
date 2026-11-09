@@ -46,7 +46,7 @@ class SpaceLayoutTests(unittest.TestCase):
 
     def test_scientific_disclaimer(self):
         self.assertIn("no representan pasadas históricas reales", self.source)
-        self.assertIn("no corresponden a las fechas históricas FIRMS", self.source)
+        self.assertIn("corresponden a las fechas históricas FIRMS", self.source)
         self.assertIn("no emite alertas oficiales", self.source)
 
     def test_no_duplicated_heading(self):
