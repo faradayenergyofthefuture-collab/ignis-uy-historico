@@ -354,85 +354,60 @@ def render_space_tracker(datos):
     render_ignis_space_module(datos)
 
 
+from ignis_ask import responder_ignis
+
+
 def _ask_ignis_answer(datos, question):
-    if datos.empty:
-        return {
-            'answer': 'No data has been loaded yet. Import or upload the NASA FIRMS archive or maestro to enable a grounded answer from the IGNIS dataset.',
-            'chart': None,
-            'sources': ['Local IGNIS dataset', 'NASA FIRMS source files']
-        }
-    q = str(question).lower()
-    qf = datos.copy()
-    qf['fecha'] = pd.to_datetime(qf['fecha'], errors='coerce', utc=True)
-    qf = qf.dropna(subset=['fecha'])
-    if 'uruguay' in q or 'uy' in q:
-        qf = qf[qf['latitude'].between(-35.5, -29.7) & qf['longitude'].between(-58.8, -52.8)]
-    if 'modis' in q and 'viirs' not in q:
-        qf = qf[qf['instrumento'].str.contains('MODIS', case=False, na=False)]
-    elif 'viirs' in q and 'modis' not in q:
-        qf = qf[qf['instrumento'].str.contains('VIIRS', case=False, na=False)]
-    if 'this month' in q:
-        month = pd.Timestamp.utcnow().to_period('M')
-        qf = qf[qf['fecha'].dt.to_period('M') == month]
-        count = len(qf)
-        answer = f'The loaded IGNIS data contains {count:,} observation records in the current month for the currently selected data slice.'
-        chart = qf.groupby(qf['fecha'].dt.day).size().reset_index(name='observations')
-        chart.columns = ['Day', 'Observations']
-        return {'answer': answer, 'chart': chart, 'sources': ['Loaded IGNIS dataset', 'NASA FIRMS archive provenance']}
-    if 'compare modis and viirs' in q or ('modis' in q and 'viirs' in q):
-        grouped = qf.groupby('instrumento').size().reset_index(name='records')
-        answer = 'This comparison uses only the loaded dataset and does not harmonize or sum detections across sensors. It is a descriptive comparison, not a calibrated fire count.'
-        return {'answer': answer, 'chart': grouped, 'sources': ['Loaded IGNIS dataset', 'Sensor provenance metadata']}
-    if 'historical' in q or 'last five years' in q:
-        grouped = qf.groupby(qf['fecha'].dt.year).size().reset_index(name='records')
-        grouped.columns = ['Year', 'Observations']
-        answer = 'Historical counts are computed directly from the loaded archive and are shown as observation counts, not confirmed fire events.'
-        return {'answer': answer, 'chart': grouped, 'sources': ['Loaded IGNIS dataset', 'Archive provenance']}
-    if 'department' in q or 'departamento' in q:
-        answer = 'Department-level aggregation is not available in the current dataset because the project loads point observations and region filters rather than a department-level administrative table.'
-        return {'answer': answer, 'chart': None, 'sources': ['Loaded IGNIS dataset', 'Project metadata']}
-    if 'frp' in q or 'fire radiative power' in q:
-        qf['frp'] = pd.to_numeric(qf.get('frp', pd.Series(np.nan, index=qf.index)), errors='coerce')
-        frp = qf['frp'].dropna()
-        if frp.empty:
-            answer = 'FRP values are unavailable in the currently loaded dataset for the requested slice.'
-        else:
-            answer = f'FRP values in the current slice span from {frp.min():,.2f} to {frp.max():,.2f} and average {frp.mean():,.2f}.'
-        return {'answer': answer, 'chart': None, 'sources': ['Loaded IGNIS dataset', 'FRP metadata']}
-    if 'activity' in q and 'month' in q:
-        month = pd.Timestamp.utcnow().to_period('M')
-        qf = qf[qf['fecha'].dt.to_period('M') == month]
-        grouped = qf.groupby('instrumento').size().reset_index(name='observations')
-        answer = f'For the current month, the loaded records break down by sensor as follows.'
-        return {'answer': answer, 'chart': grouped, 'sources': ['Loaded IGNIS dataset', 'NASA FIRMS archive provenance']}
-    count = len(qf)
-    answer = f'From the currently loaded dataset, the direct observation count for this query is {count:,}. This is a record count, not an estimate of confirmed fires or burned area.'
-    return {'answer': answer, 'chart': qf.groupby('instrumento').size().reset_index(name='records') if not qf.empty else None, 'sources': ['Loaded IGNIS dataset', 'NASA FIRMS archive provenance']}
+    """Compatibilidad: motor estadístico transparente, sin LLM externo."""
+    return responder_ignis(datos, question)
 
 
 def render_ask_ignis(datos):
-    st.subheader('🤖 ASK IGNIS')
-    st.caption('Asistente basado en datos reales. Responde a partir del conjunto cargado de IGNIS y distingue claramente entre registros observados, estimaciones y datos no disponibles.')
+    st.markdown(
+        '<div class="ignis-ui-kicker">Exploración de datos · Español</div>',
+        unsafe_allow_html=True,
+    )
+    st.subheader('ASK IGNIS · Asistente de análisis')
+    st.info(
+        'ASK IGNIS utiliza reglas estadísticas de Python/Pandas: '
+        'no está conectado a GPT, Gemini ni otra IA generativa. '
+        'Responde a partir de los datos cargados, sin inventar '
+        'incendios, fuentes externas o registros faltantes.'
+    )
     if 'ignis_chat_history' not in st.session_state:
         st.session_state['ignis_chat_history'] = []
+
     suggestion_questions = [
-        '¿Cuántos hotspots de fuego se detectaron en Uruguay este mes?',
-        'Compara observaciones MODIS y VIIRS.',
-        '¿Cuáles fueron los períodos más activos del historial?',
-        '¿Cuál es la distribución del Fire Radiative Power (FRP)?',
+        '¿Cuántas observaciones hay en Uruguay este mes?',
+        'Compará las detecciones MODIS y VIIRS.',
+        'Mostrá la evolución histórica por año.',
+        '¿Cuáles son los valores de FRP?',
     ]
-    st.write('Preguntas sugeridas')
-    suggestion_cols = st.columns(len(suggestion_questions))
+    st.caption('PREGUNTAS SUGERIDAS')
+    selected_question = None
+    left, right = st.columns(2, gap="small")
     for idx, question in enumerate(suggestion_questions):
-        with suggestion_cols[idx]:
+        with (left if idx % 2 == 0 else right):
             if st.button(question, key=f'ignis_question_{idx}', use_container_width=True):
-                st.session_state['ignis_draft_question'] = question
-    user_question = st.text_input('Pregunta a IGNIS sobre los datos actuales', value=st.session_state.get('ignis_draft_question', ''), key='ignis_draft_question_input')
-    if st.button('Enviar', type='primary'):
-        if user_question.strip():
-            st.session_state['ignis_chat_history'].append({'role':'user','content':user_question})
-            result = _ask_ignis_answer(datos, user_question)
-            st.session_state['ignis_chat_history'].append({'role':'assistant','content':result['answer'], 'sources': result['sources'], 'chart': result['chart']})
+                selected_question = question
+
+    question_typed = st.chat_input(
+        'Preguntá en español por los registros FIRMS cargados…',
+        key='ignis_chat_input',
+    )
+    user_question = selected_question or question_typed
+    if user_question and user_question.strip():
+        st.session_state['ignis_chat_history'].append({
+            'role': 'user', 'content': user_question.strip()
+        })
+        result = _ask_ignis_answer(datos, user_question)
+        st.session_state['ignis_chat_history'].append({
+            'role': 'assistant',
+            'content': result['answer'],
+            'sources': result.get('sources', []),
+            'chart': result.get('chart'),
+        })
+
     for message in st.session_state['ignis_chat_history']:
         if message['role'] == 'user':
             with st.chat_message('user'):
@@ -441,12 +416,35 @@ def render_ask_ignis(datos):
             with st.chat_message('assistant'):
                 st.write(message['content'])
                 if message.get('sources'):
-                    st.caption('Fuentes: ' + ', '.join(message['sources']))
+                    st.caption('Procedencia: ' + ', '.join(message['sources']))
                 chart = message.get('chart')
                 if chart is not None and not chart.empty:
                     st.dataframe(chart, use_container_width=True, hide_index=True)
+
     if not st.session_state['ignis_chat_history']:
-        st.info('Haz una pregunta sobre el conjunto de incendios cargado. El asistente solo responderá con el archivo actual y señalará explícitamente cuando la información no esté disponible.')
+        st.caption(
+            'Empezá con una de las preguntas sugeridas o escribí la tuya. '
+            'Para consultar noticias o evidencias externas, usá '
+            '«Alertas y trazabilidad».'
+        )
+    if st.session_state['ignis_chat_history']:
+        if st.button('Limpiar conversación', key='ignis_clear_chat'):
+            st.session_state['ignis_chat_history'] = []
+            st.rerun()
+
+    st.divider()
+    st.markdown('#### ¿Querés proponer una mejora o compartir una fuente?')
+    st.caption(
+        'Enviá comentarios, noticias, reportes de errores o propuestas al '
+        'espacio de contribuciones del Team IGNIS.'
+    )
+    st.button(
+        '💬 Ir a consultas y aportes',
+        use_container_width=True,
+        key='ignis_ask_contact',
+        on_click=_ignis_navigate_to,
+        args=(NAV_PAGES[14],),
+    )
 
 
 def asset_uri(path, mime='image/png'):
@@ -485,6 +483,7 @@ NAV_PAGES = [
     "🌐 Espacio 3D y satélites",
     "🤖 ASK IGNIS",
     "🌎 Fusión cielo–tierra",
+    "💬 Team IGNIS · Consultas y aportes",
 ]
 
 def _ignis_navigate_to(section: str) -> None:
@@ -569,7 +568,7 @@ with st.sidebar:
     )
 
 # El Inicio, el Centro de control y el Atlas renderizan su cabecera específica.
-if current_section not in (NAV_PAGES[0], NAV_PAGES[1], NAV_PAGES[6]):
+if current_section not in (NAV_PAGES[0], NAV_PAGES[1], NAV_PAGES[6], NAV_PAGES[14]):
     st.markdown(f"""<div class="ignis-topline"><div class="ignis-kicker">
        IGNIS UY · Herramientas de investigación</div>
        <h1>{current_section.split(' ',1)[1]}</h1>
@@ -866,6 +865,11 @@ if current_section==NAV_PAGES[12]:
 if current_section==NAV_PAGES[13]:
     from ignis_fusion_terrestre import mostrar_fusion_terrestre
     mostrar_fusion_terrestre(combined)
+
+if current_section == NAV_PAGES[14]:
+    from ignis_feedback import mostrar_contacto_team
+    mostrar_contacto_team()
+
 
 st.divider()
 st.caption('IGNIS UY Histórico · prototipo de investigación · entradas NASA FIRMS · evidencia documental del equipo separada · respaldo manual del maestro obligatorio.')
