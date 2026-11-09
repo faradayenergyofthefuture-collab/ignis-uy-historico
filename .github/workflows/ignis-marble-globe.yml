@@ -1,0 +1,31 @@
+name: IGNIS Blue-Black Marble checks
+
+on:
+  push:
+    branches:
+      - feature/ignis-blue-black-marble-globe-20261108
+  pull_request:
+    paths:
+      - "ignis_espacio.py"
+      - "tests/test_ignis_marble_globe.py"
+      - ".github/workflows/ignis-marble-globe.yml"
+
+jobs:
+  globe-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Compile Python files
+        run: python -m compileall -q ignis_espacio.py ignis_historico.py
+      - name: Validate Three.js module and globe functionality
+        run: python -m unittest discover -s tests -p 'test_ignis_marble_globe.py' -v
+      - name: Existing orbit and layout regression tests
+        run: |
+          python -m unittest discover -s tests -p 'test_ignis_space_layout.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_orbit_navigation.py' -v
