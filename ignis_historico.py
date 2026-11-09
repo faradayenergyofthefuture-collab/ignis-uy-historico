@@ -457,12 +457,7 @@ def asset_uri(path, mime='image/png'):
 # ===== IGNIS UY / navegación estructural (nuevo dashboard) =====
 st.markdown("""<style>
 /* El ancho y padding principal se definen en ignis_visual.apply_visual_theme. */
-section[data-testid="stSidebar"]{background:#102033;border-right:1px solid #294960}
-section[data-testid="stSidebar"] div[role="radiogroup"] label{
-    border-radius:10px;padding:.45rem .6rem;margin:2px 0;
-    background:#182c42;border:1px solid #2c4760}
-section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked){
-    background:#184c60;border-color:#46d1dc}
+/* El diseño del panel lateral vive en ignis_visual.apply_visual_theme. */
 [data-testid="stMetric"]{border-color:#3c657d!important;
     background:linear-gradient(130deg,#132d43,#172038)!important}
 .ignis-kicker{color:#45d5e1;font-size:.74rem;letter-spacing:.12em;
@@ -503,38 +498,75 @@ if not isinstance(combined,pd.DataFrame):
     combined=pd.DataFrame(columns=COLS)
 
 with st.sidebar:
-    brand_icon, brand_title = st.columns([1, 4], vertical_alignment="center")
-    with brand_icon:
-        if (BASE / "logo_ignis.png").exists():
-            st.image(str(BASE / "logo_ignis.png"), width=44)
-        else:
-            st.markdown("🛰️")
-    with brand_title:
-        st.markdown("### IGNIS UY")
-    st.caption("Análisis histórico · NASA FIRMS · Uruguay")
-    current_section=st.radio("Navegación",NAV_PAGES,key="ignis_nav",
-                             label_visibility="collapsed")
-    st.divider()
+    # Cabecera institucional consistente con el diseño del resto de IGNIS.
+    logo_src = asset_uri(BASE / "logo_ignis.png") if (BASE / "logo_ignis.png").exists() else ""
+    logo_markup = (
+        f'<img src="{logo_src}" alt="Logo IGNIS UY" />'
+        if logo_src else '<span class="ignis-side-logo-fallback">◈</span>'
+    )
+    st.markdown(
+        f'<div class="ignis-side-brand">'
+        f'<div class="ignis-side-logo">{logo_markup}</div>'
+        '<div class="ignis-side-brand-copy">'
+        '<strong>IGNIS <span>UY</span></strong>'
+        '<small>HISTÓRICO · URUGUAY</small>'
+        '</div></div>'
+        '<div class="ignis-side-project">NASA FIRMS <span>·</span> MODIS + VIIRS</div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="ignis-side-section-title">NAVEGACIÓN</div>',
+                unsafe_allow_html=True)
+    # Mantener un único st.radio y la misma clave evita perder estados y
+    # conserva los callbacks de navegación entre las páginas existentes.
+    current_section = st.radio(
+        "Navegación", NAV_PAGES, key="ignis_nav",
+        label_visibility="collapsed",
+    )
+    st.markdown('<div class="ignis-side-section-title">FILTROS DE ANÁLISIS</div>',
+                unsafe_allow_html=True)
     if not combined.empty:
-        st.caption("FILTROS DEL ESTUDIO")
-        region=st.selectbox("Región / caso",list(REGIONES),key="sidebar_region")
-        sensors_available=sorted(combined.instrumento.dropna().astype(str).unique())
-        sensors=st.multiselect("Sensores visibles",sensors_available,
-                               default=sensors_available,key="sidebar_sensores")
-        st.session_state["region"]=region
-        st.session_state["sensores"]=sensors
-        st.caption(f"{len(combined):,} registros en esta sesión")
+        region = st.selectbox("Región / caso", list(REGIONES), key="sidebar_region")
+        sensors_available = sorted(combined.instrumento.dropna().astype(str).unique())
+        sensors = st.multiselect(
+            "Sensores visibles", sensors_available, default=sensors_available,
+            key="sidebar_sensores",
+        )
+        st.session_state["region"] = region
+        st.session_state["sensores"] = sensors
+        st.markdown(
+            f'<div class="ignis-side-data-status">'
+            f'<span class="ignis-side-status-dot"></span>'
+            f'{len(combined):,} registros cargados</div>',
+            unsafe_allow_html=True,
+        )
     else:
-        st.caption("Cargá un Maestro IGNIS o ZIP/CSV en Carga de datos.")
-    st.divider()
-    st.caption("RECURSOS OFICIALES")
-    st.link_button("✈️ Escuela Militar de Aeronáutica", "https://ema.fau.mil.uy/",
-                   use_container_width=True)
-    st.link_button("🚀 NASA Space Apps 2026", "https://www.spaceappschallenge.org/2026/",
-                   use_container_width=True)
-    st.caption("Enlaces externos informativos; no implican patrocinio o aval institucional.")
-    st.divider()
-    st.caption("Las detecciones térmicas no son incendios confirmados.")
+        st.markdown(
+            '<div class="ignis-side-empty">'
+            '<span class="ignis-side-status-dot"></span>'
+            'Sin archivos cargados'
+            '<small>Importá un Maestro IGNIS o ZIP/CSV desde Carga de datos.</small>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+    st.markdown('<div class="ignis-side-section-title">RECURSOS OFICIALES</div>',
+                unsafe_allow_html=True)
+    st.link_button(
+        "✈️ Escuela Militar de Aeronáutica", "https://ema.fau.mil.uy/",
+        use_container_width=True,
+    )
+    st.link_button(
+        "🚀 NASA Space Apps 2026", "https://www.spaceappschallenge.org/2026/",
+        use_container_width=True,
+    )
+    st.markdown(
+        '<div class="ignis-side-footer">'
+        '<span class="ignis-side-footer-accent"></span>'
+        'Plataforma de investigación geoespacial.'
+        '<br>Los focos térmicos no son incendios confirmados.'
+        '<br>Enlaces institucionales informativos; no implican aval.'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
 # El Inicio, el Centro de control y el Atlas renderizan su cabecera específica.
 if current_section not in (NAV_PAGES[0], NAV_PAGES[1], NAV_PAGES[6]):
