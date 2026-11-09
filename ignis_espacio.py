@@ -386,38 +386,90 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           const earthGroup = new THREE.Group();
           scene.add(earthGroup);
 
+          // Earth day/night. earth_normal_2048.jpg es un mapa de relieve, NO luces nocturnas.
           const textureLoader = new THREE.TextureLoader();
-          const blueMarbleUrl = 'https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg';
-          const blackMarbleUrl = 'https://threejs.org/examples/textures/planets/earth_normal_2048.jpg';
-          const earthTexture = textureLoader.load(blueMarbleUrl);
-          const earthBump = textureLoader.load(blackMarbleUrl);
+          textureLoader.setCrossOrigin('anonymous');
+          const textureBase = 'https://threejs.org/examples/textures/planets/';
+          const blueMarbleUrl = textureBase + 'earth_atmos_4096.jpg';
+          const blackMarbleUrl = textureBase + 'earth_lights_2048.png';
+          const cloudMapUrl = textureBase + 'earth_clouds_1024.png';
+          const earthView = payload.earth_visualization || 'Blue Marble + Black Marble';
+          function solidTex(color) {{
+            const tex = new THREE.DataTexture(new Uint8Array(color), 1, 1, THREE.RGBFormat);
+            tex.colorSpace = THREE.SRGBColorSpace;
+            tex.needsUpdate = true;
+            return tex;
+          }}
+          const globeUniforms = {{
+            dayMap: {{value:solidTex([30,83,128])}},
+            nightMap: {{value:solidTex([2,4,10])}},
+            sunDirection: {{value:sunLight.position.clone().normalize()}},
+            mode: {{value:earthView === 'Blue Marble (día)' ? 1 :
+                    earthView === 'Black Marble (noche)' ? 2 : 0}}
+          }};
           const earth = new THREE.Mesh(
-            new THREE.SphereGeometry(2.2, 96, 96),
-            new THREE.MeshPhongMaterial({{
-              map: earthTexture,
-              bumpMap: earthBump,
-              bumpScale: 0.12,
-              shininess: 16,
-              color: 0xdfeeff,
-              emissive: new THREE.Color(0x071a2d),
-              emissiveIntensity: 0.35
+            new THREE.SphereGeometry(2.2, 128, 128),
+            new THREE.ShaderMaterial({{
+              uniforms: globeUniforms,
+              vertexShader:
+                'varying vec2 vMapUV; varying vec3 vNormalWorld;' +
+                'void main() {{ vMapUV=uv;' +
+                'vNormalWorld=normalize(mat3(modelMatrix)*normal);' +
+                'gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }}',
+              fragmentShader:
+                'uniform sampler2D dayMap; uniform sampler2D nightMap;' +
+                'uniform vec3 sunDirection; uniform int mode;' +
+                'varying vec2 vMapUV; varying vec3 vNormalWorld;' +
+                'void main() {{' +
+                'vec3 day=texture2D(dayMap,vMapUV).rgb;' +
+                'vec3 night=texture2D(nightMap,vMapUV).rgb;' +
+                'float solar=dot(normalize(vNormalWorld),normalize(sunDirection));' +
+                'float light=smoothstep(-0.12,0.22,solar);' +
+                'vec3 dayLit=day*(0.25+0.75*max(solar,0.0));' +
+                'vec3 nightLit=night*1.70+day*0.035;' +
+                'vec3 rgb=mix(nightLit,dayLit,light);' +
+                'if(mode==1)rgb=day*0.95;' +
+                'if(mode==2)rgb=night*1.70+day*0.015;' +
+                'gl_FragColor=vec4(rgb,1.0);' +
+                '#include <tonemapping_fragment>' +
+                '#include <colorspace_fragment>' +
+                '}}'
             }})
           );
           earthGroup.add(earth);
-
-          earthTexture.onError = () => {{
-            const fallback = textureLoader.load(blackMarbleUrl);
-            earth.material.map = fallback;
-            earth.material.needsUpdate = true;
-          }};
-
+          let textureCount = 0;
+          function loadGlobeTexture(url, key) {{
+            textureLoader.load(url,(image) => {{
+              image.colorSpace = THREE.SRGBColorSpace;
+              image.anisotropy = Math.min(renderer.capabilities.getMaxAnisotropy(), 8);
+              globeUniforms[key].value=image;
+              textureCount++;
+              if(textureCount === 2) setStatus('3D listo · Blue/Black Marble');
+            }},undefined,() => {{
+              setStatus('3D disponible · textura sin cargar (revisar red)','error');
+            }});
+          }}
+          loadGlobeTexture(blueMarbleUrl,'dayMap');
+          loadGlobeTexture(blackMarbleUrl,'nightMap');
+          if (payload.show_clouds !== false) {{
+            textureLoader.load(cloudMapUrl,(cloudTex) => {{
+              cloudTex.colorSpace = THREE.SRGBColorSpace;
+              const clouds = new THREE.Mesh(
+                new THREE.SphereGeometry(2.215,96,96),
+                new THREE.MeshBasicMaterial({{
+                  map:cloudTex,transparent:true,opacity:0.20,
+                  side:THREE.FrontSide,depthWrite:false
+                }})
+              );
+              clouds.renderOrder=2;
+              earthGroup.add(clouds);
+            }},undefined,() => {{}});
+          }}
           const atmosphere = new THREE.Mesh(
-            new THREE.SphereGeometry(2.35, 96, 96),
+            new THREE.SphereGeometry(2.35,96,96),
             new THREE.MeshPhongMaterial({{
-              color: 0x49a7ff,
-              transparent: true,
-              opacity: 0.18,
-              side: THREE.BackSide
+              color:0x4da4ff,transparent:true,opacity:0.13,
+              side:THREE.BackSide,depthWrite:false
             }})
           );
           earthGroup.add(atmosphere);
@@ -470,36 +522,71 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             return result;
           }}
 
+          function makeSatelliteLabel(label, colorString) {{
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'rgba(3,12,25,.89)';
+            ctx.beginPath();
+            ctx.roundRect(6,8,500,108,18);
+            ctx.fill();
+            ctx.lineWidth = 5;
+            ctx.strokeStyle = colorString;
+            ctx.stroke();
+            ctx.fillStyle = '#f2f9ff';
+            ctx.font = 'bold 48px Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(label,256,64,465);
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.colorSpace=THREE.SRGBColorSpace;
+            const sprite = new THREE.Sprite(new THREE.SpriteMaterial({{
+              map:texture,transparent:true,depthTest:true,depthWrite:false
+            }}));
+            sprite.scale.set(.96,.24,1);
+            return sprite;
+          }}
           let illustrativeOrbits = 0;
           let tleOrbits = 0;
           if (payload.satellites && (showSatellites || showOrbits)) {{
-            payload.satellites.forEach((sat, index) => {{
+            payload.satellites.forEach((sat,index) => {{
               const color = new THREE.Color(sat.color);
               const valid = Array.isArray(sat.positions) && sat.positions.length >= 2;
               const schematic = !valid;
               const points = valid
-                ? sat.positions.map((p) => latLonToVector3(
-                    p.lat, p.lon, 2.2 * (1 + Math.max(0, Number(p.alt_km) || 0) / 6378.137)
+                ? sat.positions.map((p)=>latLonToVector3(
+                    p.lat,p.lon,2.2*(1+Math.max(0,Number(p.alt_km)||0)/6378.137)
                   ))
                 : schematicOrbit(index);
               if (showOrbits) {{
-                const orbitGeometry = new THREE.BufferGeometry().setFromPoints(points);
-                const orbitMaterial = schematic
-                  ? new THREE.LineDashedMaterial({{ color, transparent: true, opacity: 0.72, dashSize: 0.09, gapSize: 0.055 }})
-                  : new THREE.LineBasicMaterial({{ color, transparent: true, opacity: 0.9 }});
-                const orbitMesh = new THREE.Line(orbitGeometry, orbitMaterial);
-                if (schematic) orbitMesh.computeLineDistances();
-                earthGroup.add(orbitMesh);
-                if (schematic) illustrativeOrbits++;
+                const geometry = new THREE.BufferGeometry().setFromPoints(points);
+                const material = schematic
+                  ? new THREE.LineDashedMaterial({{color,transparent:true,opacity:.83,dashSize:.11,gapSize:.05}})
+                  : new THREE.LineBasicMaterial({{color,transparent:true,opacity:.95}});
+                const line = new THREE.Line(geometry,material);
+                if(schematic) line.computeLineDistances();
+                earthGroup.add(line);
+                if(schematic) illustrativeOrbits++;
                 else tleOrbits++;
               }}
-              if (showSatellites) {{
-                const marker = new THREE.Mesh(
-                  new THREE.SphereGeometry(0.055, 16, 16),
-                  new THREE.MeshBasicMaterial({{ color }})
+              if (showSatellites && points.length) {{
+                // En modo ilustrativo las posiciones se distribuyen: NO son posiciones reales.
+                const markerIndex=schematic
+                  ? Math.floor(points.length*((index*.18+.07)%1))
+                  : 0;
+                const markerPoint=points[markerIndex];
+                const marker=new THREE.Mesh(
+                  new THREE.SphereGeometry(.063,18,18),
+                  new THREE.MeshBasicMaterial({{color}})
                 );
-                marker.position.copy(points[0]);
+                marker.position.copy(markerPoint);
                 earthGroup.add(marker);
+                const labelText=sat.name.replace(' (MODIS)','').replace(' (VIIRS)','');
+                const label=makeSatelliteLabel(labelText,sat.color);
+                label.position.copy(markerPoint).multiplyScalar(1.06);
+                label.position.y += .10;
+                earthGroup.add(label);
               }}
             }});
           }}
@@ -542,23 +629,19 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             renderer.render(scene, camera);
           }}, 180);
 
-          setStatus(payload.hotspots && payload.hotspots.length ? 'Cargando detecciones...' : '3D listo');
+          setStatus('Cargando texturas Blue/Black Marble…');
 
           function animate() {{
             requestAnimationFrame(animate);
-            earth.rotation.y += 0.0018;
-            atmosphere.rotation.y -= 0.0007;
+            // Rotar la cámara y no la textura: las detecciones permanecen georreferenciadas.
             controls.update();
             renderer.render(scene, camera);
           }}
           animate();
-          if (showOrbits && illustrativeOrbits > 0) {{
-            setStatus('3D listo · órbitas punteadas ilustrativas (' + illustrativeOrbits + ')');
-          }} else if (showOrbits && tleOrbits > 0) {{
-            setStatus('3D listo · trayectorias TLE actuales');
-          }} else {{
-            setStatus('3D listo');
-          }}
+          const orbitStatus = (showOrbits && illustrativeOrbits > 0)
+            ? ' · órbitas ilustrativas ('+illustrativeOrbits+')'
+            : (showOrbits && tleOrbits > 0 ? ' · TLE actuales' : '');
+          setStatus('3D listo'+orbitStatus);
           }} catch (error) {{
             console.error('IGNIS 3D error:', error);
             const message = error && error.message ? error.message : 'Error no identificado al preparar la vista 3D.';
@@ -643,6 +726,14 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
                 "Focos térmicos", value=True, key="ignis_space_show_hotspots")
             show_bounds = st.checkbox(
                 "Límites geográficos", value=True, key="ignis_space_show_bounds")
+            show_clouds = st.checkbox(
+                "Nubes tenues", value=True, key="ignis_space_show_clouds")
+            earth_visualization = st.selectbox(
+                "Visualización terrestre",
+                ["Blue Marble + Black Marble", "Blue Marble (día)", "Black Marble (noche)"],
+                index=0, key="ignis_space_earth_style",
+                help="Composiciones estáticas, no imágenes de la Tierra en tiempo real.",
+            )
             orbit_mode = st.radio(
                 "Fuente de trayectorias",
                 ["Esquemas ilustrativos", "TLE actuales"],
@@ -698,6 +789,8 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
         "show_orbits": show_orbits,
         "show_hotspots": show_hotspots,
         "show_bounds": show_bounds,
+        "show_clouds": show_clouds,
+        "earth_visualization": earth_visualization,
         "satellites": satellites,
         "hotspots": hotspots,
     }
@@ -721,7 +814,8 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
                              hide_index=True, height=260)
 
     st.caption(
-        "Aviso científico: las trayectorias TLE son aproximaciones actuales y no "
-        "corresponden a las fechas históricas FIRMS. Las trayectorias punteadas son "
-        "únicamente esquemáticas. IGNIS no emite alertas oficiales."
+        "Blue Marble y luces nocturnas: visualizaciones estáticas, no imágenes "
+        "en directo ni de la fecha seleccionada. Las trayectorias TLE son "
+        "aproximaciones actuales y no corresponden a las fechas históricas FIRMS. "
+        "Las trayectorias punteadas son esquemáticas. IGNIS no emite alertas oficiales."
     )
