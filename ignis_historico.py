@@ -456,7 +456,7 @@ def asset_uri(path, mime='image/png'):
 
 # ===== IGNIS UY / navegación estructural (nuevo dashboard) =====
 st.markdown("""<style>
-.block-container {max-width:1700px;padding-top:1.25rem}
+/* El ancho y padding principal se definen en ignis_visual.apply_visual_theme. */
 section[data-testid="stSidebar"]{background:#102033;border-right:1px solid #294960}
 section[data-testid="stSidebar"] div[role="radiogroup"] label{
     border-radius:10px;padding:.45rem .6rem;margin:2px 0;
