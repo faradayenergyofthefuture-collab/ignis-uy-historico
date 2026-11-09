@@ -45,7 +45,9 @@ class OrbitAndNavigationRegressionTests(unittest.TestCase):
     def test_navigation_uses_widget_callbacks(self):
         source = (ROOT / "ignis_historico.py").read_text(encoding="utf-8")
         self.assertIn("def _ignis_navigate_to(", source)
-        self.assertEqual(source.count("on_click=_ignis_navigate_to"), 3)
+        visual = (ROOT / "ignis_visual.py").read_text(encoding="utf-8")
+        self.assertIn("on_click=navigate", visual)
+        self.assertIn("render_project_home(", source)
         self.assertEqual(source.count('st.session_state["ignis_nav"] ='), 1)
 
     def test_source_syntax(self):
