@@ -30,14 +30,23 @@ LIMITE_BYTES = 4_000_000
 
 
 def _clave_nasa():
-    """La clave se obtiene del gestor seguro de Streamlit; nunca del repositorio."""
-    try:
-        clave = str(st.secrets["NASA_FIRMS_MAP_KEY"]).strip()
+    """La clave se obtiene del gestor seguro de Streamlit; nunca del repositorio.
+
+    Acepta ambos nombres para mantener compatibilidad con la configuración
+    existente del resto del dashboard (FIRMS_MAP_KEY) y con la nueva API NRT.
+    """
+    for nombre in ("NASA_FIRMS_MAP_KEY", "FIRMS_MAP_KEY"):
+        try:
+            clave = str(st.secrets.get(nombre, "")).strip()
+            if clave:
+                return clave
+        except Exception:
+            pass
+    for nombre in ("NASA_FIRMS_MAP_KEY", "FIRMS_MAP_KEY"):
+        clave = os.environ.get(nombre, "").strip()
         if clave:
             return clave
-    except Exception:
-        pass
-    return os.environ.get("NASA_FIRMS_MAP_KEY", "").strip()
+    return ""
 
 
 @st.cache_data(ttl=900, max_entries=16, show_spinner=False)
@@ -159,7 +168,7 @@ def mostrar_monitoreo_nrt():
     st.info("NASA publica anomalías térmicas con cierta demora; no es una transmisión satelital continua ni un sistema de emergencia.")
     clave = _clave_nasa()
     if not clave:
-        st.warning("Para activar las consultas, configurá NASA_FIRMS_MAP_KEY en los Secrets de la aplicación Streamlit (no en GitHub).")
+        st.warning("Para activar las consultas, configurá NASA_FIRMS_MAP_KEY o FIRMS_MAP_KEY en los Secrets de la aplicación Streamlit (no en GitHub).")
         st.markdown("Solicitar clave gratuita: https://firms.modaps.eosdis.nasa.gov/api/map_key/")
 
     with st.form("ignis_nrt_consulta_form"):

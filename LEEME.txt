@@ -10,8 +10,14 @@ Para probarlo localmente:
 Para usarlo en Streamlit Cloud, crear una NUEVA app/repo con ignis_historico.py como entrada.
 NO sobrescribir streamlit_app.py en el repositorio original.
 
+Datos en vivo NASA FIRMS:
+- La pestaña de carga puede consultar datos NRT de Uruguay sin subir ZIP/CSV.
+- Obtener una MAP_KEY gratis en NASA FIRMS y configurarla como FIRMS_MAP_KEY en los Secrets de Streamlit Cloud.
+- Para ejecución local, copiar .streamlit/secrets.toml.example como .streamlit/secrets.toml y reemplazar el valor de ejemplo.
+- Las consultas cubren hasta los últimos 10 días y se cachean durante una hora.
+
 Límites actuales:
-- Lee ZIP/CSV de NASA FIRMS que el equipo cargue de forma explícita.
+- Lee ZIP/CSV históricos y puede consultar datos NRT de NASA FIRMS.
 - MODIS del 2000 se admite sin VIIRS.
 - No descarga 27 años de datos automáticamente.
 - La carga de archivos depende de los límites de tamaño de Streamlit Cloud.
