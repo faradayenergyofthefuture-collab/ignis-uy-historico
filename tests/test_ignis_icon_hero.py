@@ -49,14 +49,12 @@ class PremiumIconAndHeroTests(unittest.TestCase):
         nav_lines = self.main[nav_start:nav_end].splitlines()
         self.assertEqual(sum(line.strip().startswith('"') for line in nav_lines), 15)
 
-    def test_each_icon_is_targeted_at_option_wrapper(self):
-        for i in range(1, 16):
-            selector = f'> div:nth-child({i}) label::after'
-            fallback = f'> label:nth-child({i})::after'
+    def test_each_icon_is_targeted_at_stable_button_key(self):
+        for i in range(15):
+            selector = f'div.st-key-ignis_nav_{i:02d} button::before'
             with self.subTest(i=i):
                 self.assertIn(selector, self.css)
-                self.assertIn(fallback, self.css)
-        self.assertNotIn("f'label:nth-child({i})::after'", self.visual)
+        self.assertNotIn("current_section = st.radio(", self.main)
 
     def test_icons_are_distinct(self):
         # Each visual option should have a different embedded outline SVG.
@@ -64,10 +62,10 @@ class PremiumIconAndHeroTests(unittest.TestCase):
         self.assertGreaterEqual(len(matches), 18)  # 15 menu + 3 actions
         self.assertEqual(len(set(matches[:15])), 15)
 
-    def test_radio_circles_hidden_but_focus_visible(self):
-        self.assertIn("clip-path:inset(50%)", self.visual)
-        self.assertIn("label:focus-within", self.visual)
-        self.assertIn('key="ignis_nav"', self.main)
+    def test_menu_has_no_radio_circles_and_keyboard_focus(self):
+        self.assertIn('key=f"ignis_nav_{i:02d}"', self.main)
+        self.assertIn("button:focus-visible", self.visual)
+        self.assertIn('st.session_state.setdefault("ignis_nav", NAV_PAGES[0])', self.main)
 
     def test_enhanced_satellite_is_present(self):
         for detail in ("id=\"satBody\"", "id=\"cellShine\"",
@@ -80,7 +78,7 @@ class PremiumIconAndHeroTests(unittest.TestCase):
         self.assertIn("id=\"terrainCloud\"", self.svg)
         self.assertIn("id=\"earthHighlights\"", self.svg)
         self.assertIn("Illustration deliberately stylized", self.svg)
-        self.assertIn("La imagen espacial es ilustrativa", self.visual)
+        self.assertIn("La escena espacial es ilustrativa", self.visual)
 
     def test_existing_routes_and_features_unchanged(self):
         for key in ("hero_to_history", "hero_to_dashboard", "hero_to_upload"):
