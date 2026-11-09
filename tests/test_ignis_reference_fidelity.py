@@ -1,4 +1,4 @@
-"""Regresión de fidelidad visual: navegación sin radios y fotografía nocturna."""
+"""Regresión visual: navegación sin radios y fondos artísticos locales."""
 import ast
 import copy
 from pathlib import Path
@@ -61,11 +61,14 @@ class IgnisReferenceFidelityTests(unittest.TestCase):
         self.assertIn('st.button(',self.main)
         self.assertNotIn('label_visibility="collapsed"',self.main)
 
-    def test_photo_background_with_vector_fallback_and_attribution(self):
-        self.assertIn("Black_Marble_Americas.jpg",self.visual)
-        self.assertIn('ignis_hero_premium.svg',self.visual)
-        self.assertIn("NASA Earth Observatory / Suomi NPP VIIRS",self.visual)
-        self.assertIn("no una",self.visual)
+    def test_local_backgrounds_with_vector_fallback_and_disclaimer(self):
+        for filename in ("bg_portada.webp", "bg_observaciones.webp",
+                         "bg_atlas.webp", "bg_trazabilidad.webp"):
+            self.assertIn(filename, self.visual)
+            self.assertTrue((ROOT / "assets" / filename).is_file())
+        self.assertIn('ignis_hero_premium.svg', self.visual)
+        self.assertNotIn("Black_Marble_Americas.jpg", self.visual)
+        self.assertIn("La escena espacial es ilustrativa.", self.visual)
 
     def test_preserve_existing_navigation_and_science(self):
         self.assertIn('def _ignis_navigate_to(section: str)',self.main)

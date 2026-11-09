@@ -1,0 +1,34 @@
+name: IGNIS four premium local backgrounds
+
+on:
+  push:
+    branches:
+      - feature/ignis-four-premium-backgrounds-20261109
+  pull_request:
+    paths:
+      - "assets/bg_portada.webp"
+      - "assets/bg_observaciones.webp"
+      - "assets/bg_atlas.webp"
+      - "assets/bg_trazabilidad.webp"
+      - "ignis_visual.py"
+      - "tests/test_ignis_local_backgrounds.py"
+      - ".github/workflows/ignis-local-backgrounds.yml"
+
+jobs:
+  backgrounds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Compile UI modules
+        run: python -m compileall -q ignis_historico.py ignis_visual.py
+      - name: Validate bundled images and layout mapping
+        run: python -m unittest discover -s tests -p 'test_ignis_local_backgrounds.py' -v
+      - name: Existing UI regression tests
+        run: |
+          python -m unittest discover -s tests -p 'test_ignis_approved_landing.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_premium_layout.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_visual.py' -v
+          python -m unittest discover -s tests -p 'test_ignis_icon_hero.py' -v
