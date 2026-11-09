@@ -1,0 +1,25 @@
+name: IGNIS UI smoke tests
+
+on:
+  push:
+    branches:
+      - feature/ignis-visual-a-b-c-20261108
+  pull_request:
+    paths:
+      - "ignis_historico.py"
+      - "ignis_visual.py"
+      - ".streamlit/config.toml"
+      - "tests/test_ignis_visual.py"
+
+jobs:
+  visual-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Syntax check
+        run: python -m compileall -q ignis_historico.py ignis_visual.py
+      - name: Visual structure tests (no network needed)
+        run: python -m unittest discover -s tests -p 'test_ignis_visual.py' -v
