@@ -1,0 +1,26 @@
+name: IGNIS 3D layout checks
+
+on:
+  push:
+    branches:
+      - feature/ignis-space-immersive-layout-20261108
+  pull_request:
+    paths:
+      - "ignis_espacio.py"
+      - "tests/test_ignis_space_layout.py"
+      - ".github/workflows/ignis-space-ui.yml"
+
+jobs:
+  space-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check Python syntax
+        run: python -m compileall -q ignis_espacio.py ignis_historico.py
+      - name: 3D layout regression tests
+        run: python -m unittest discover -s tests -p 'test_ignis_space_layout.py' -v
+      - name: Existing orbit/navigation regression tests
+        run: python -m unittest discover -s tests -p 'test_ignis_orbit_navigation.py' -v
