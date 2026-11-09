@@ -14,73 +14,144 @@ import streamlit as st
 
 def apply_visual_theme():
     st.markdown("""<style>
-    .stApp {background:linear-gradient(155deg,#091324 0%,#070e1b 70%,#06101d 100%)!important}
-    .block-container {max-width:1700px;padding-top:1.5rem;padding-bottom:3rem}
-    section[data-testid="stSidebar"] {background:#0c1d32!important;border-right:1px solid #284963}
+    /* IGNIS design system: panels almost flush to the viewport, crisp edges. */
+    .stApp {
+      --ignis-radius-panel: 4px;
+      --ignis-radius-control: 5px;
+      --ignis-border: rgba(88, 151, 186, .32);
+      background:linear-gradient(155deg,#091324 0%,#070e1b 70%,#06101d 100%)!important;
+    }
+    .block-container,[data-testid="stMainBlockContainer"] {
+      width:100%!important;
+      max-width:none!important;
+      box-sizing:border-box;
+      padding: .9rem clamp(.6rem,1.15vw,1.35rem) 2.6rem!important;
+    }
+    section[data-testid="stSidebar"] {
+      background:#0c1d32!important;
+      border-right:1px solid #284963;
+    }
     section[data-testid="stSidebar"] div[role="radiogroup"] label {
       display:flex;align-items:center;width:100%;box-sizing:border-box;
-      padding:.48rem .65rem;margin:2px 0;border-radius:10px;
+      padding:.48rem .65rem;margin:2px 0;border-radius:4px;
       border:1px solid transparent;background:transparent;
+      transition:background-color .15s ease,border-color .15s ease;
     }
     section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
-      border-color:#42b7d0;background:rgba(33,143,177,.19)
+      border-color:#42b7d0;background:rgba(33,143,177,.19);
     }
     [data-testid="stMetric"] {
       background:linear-gradient(125deg,#14283f,#0d2036)!important;
-      border:1px solid #355976!important;border-radius:16px!important;
-      padding:18px!important;min-height:104px
+      border:1px solid var(--ignis-border)!important;
+      border-radius:var(--ignis-radius-panel)!important;
+      padding:16px!important;min-height:102px;
+      box-shadow:none!important;
     }
     [data-testid="stMetricValue"]{color:#f0faff!important}
-    .stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"]{
-      background:linear-gradient(95deg,#087eb8,#125fc5)!important;
-      border:1px solid #2689db!important;color:white!important
+    .stButton>button,.stDownloadButton>button,.stLinkButton>a {
+      border-radius:var(--ignis-radius-control)!important;
+      box-shadow:none!important;
+      min-height:43px;
+      transition:border-color .17s ease,background-color .17s ease;
     }
-    .ignis-ui-kicker{font-size:.74rem;font-weight:800;letter-spacing:.15em;
-      text-transform:uppercase;color:#67ddef;margin-bottom:.65rem}
+    .stButton>button[kind="primary"],.stDownloadButton>button[kind="primary"] {
+      background:linear-gradient(95deg,#087eb8,#125fc5)!important;
+      border:1px solid #2689db!important;color:white!important;
+    }
+    .stButton>button:hover,.stDownloadButton>button:hover,.stLinkButton>a:hover {
+      border-color:#63c9e6!important;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] {
+      border-radius:var(--ignis-radius-panel)!important;
+    }
+    div[data-baseweb="select"]>div,div[data-baseweb="input"] {
+      border-radius:var(--ignis-radius-control)!important;
+    }
+    .ignis-ui-kicker {
+      font-size:.74rem;font-weight:800;letter-spacing:.15em;
+      text-transform:uppercase;color:#67ddef;margin-bottom:.65rem;
+    }
     .ignis-ui-header{margin:0 0 1.1rem}
-    .ignis-ui-header h1{font-size:clamp(1.8rem,3vw,2.55rem)!important;
-      margin:.15rem 0 .45rem;line-height:1.2}
+    .ignis-ui-header h1 {
+      font-size:clamp(1.8rem,3vw,2.55rem)!important;
+      margin:.15rem 0 .45rem;line-height:1.2;
+    }
     .ignis-ui-header p{color:#b8d2e2;margin:0;line-height:1.6}
-    .ignis-ui-topbar{display:flex;align-items:center;justify-content:space-between;
-      gap:15px;flex-wrap:wrap;padding:.75rem 1.15rem;margin:0 0 1rem;
-      border:1px solid #315672;border-radius:16px;background:rgba(7,19,34,.94)}
-    .ignis-ui-wordmark{display:flex;align-items:center;gap:12px;
-      font-size:1.15rem;font-weight:850;color:#f5faff}
-    .ignis-ui-wordmark img{width:43px;height:43px;object-fit:contain;border-radius:9px}
-    .ignis-ui-wordmark small{display:block;color:#a7c6d8;font-size:.75rem;font-weight:500}
+    /* Continuous institutional header; no floating rounded container. */
+    .ignis-ui-topbar {
+      display:flex;align-items:center;justify-content:space-between;
+      gap:15px;flex-wrap:wrap;padding:.75rem 1.15rem;margin:0;
+      border:1px solid #315672;border-bottom:0;
+      border-radius:0;background:rgba(7,19,34,.97);
+    }
+    .ignis-ui-wordmark {
+      display:flex;align-items:center;gap:12px;
+      font-size:1.15rem;font-weight:850;color:#f5faff;
+    }
+    .ignis-ui-wordmark img {
+      width:43px;height:43px;object-fit:contain;border-radius:3px;
+    }
+    .ignis-ui-wordmark small {
+      display:block;color:#a7c6d8;font-size:.75rem;font-weight:500;
+    }
     .ignis-ui-links{display:flex;flex-wrap:wrap;gap:8px}
-    .ignis-ui-links a{color:#d3ecff;text-decoration:none;border:1px solid #38617a;
-      border-radius:10px;padding:9px 13px;font-size:.84rem;font-weight:650}
+    .ignis-ui-links a {
+      color:#d3ecff;text-decoration:none;border:1px solid #38617a;
+      border-radius:4px;padding:9px 13px;font-size:.84rem;font-weight:650;
+    }
     .ignis-ui-links a:hover{background:#163958;border-color:#62d5eb}
-    .ignis-ui-hero{
-      border:1px solid #44718f;border-radius:22px;
+    .ignis-ui-hero {
+      border:1px solid #315672;border-radius:0;
       min-height:370px;background-color:#0e294b;
       background-size:cover;background-position:center right;
       display:flex;flex-direction:column;justify-content:center;
-      padding:clamp(24px,5vw,60px);margin-bottom:1rem;
-      box-shadow:0 20px 45px rgba(0,0,0,.24)
+      padding:clamp(24px,4.2vw,64px);
+      margin:0 0 1rem;
+      box-shadow:none;
     }
-    .ignis-ui-hero h1{font-size:clamp(2.6rem,5.8vw,5rem)!important;
-      line-height:1.02;margin:.15rem 0 1rem;color:#fff!important}
-    .ignis-ui-hero h1 span{color:#6ad3ff}
-    .ignis-ui-hero p{font-size:1.02rem;line-height:1.65;
-      color:#d6e7f5;max-width:590px;margin:0}
-    .ignis-ui-hero-facts{display:flex;flex-wrap:wrap;gap:12px;
-      margin-top:1.6rem;font-size:.82rem;color:#bddbea}
-    .ignis-ui-hero-facts span{padding:.55rem .85rem;border-radius:10px;
-      background:rgba(8,24,43,.70);border:1px solid rgba(114,180,209,.28)}
-    .ignis-ui-card{background:#10263c;border:1px solid #2a5069;
-      border-radius:15px;padding:18px;min-height:142px;margin-bottom:10px}
+    .ignis-ui-hero h1 {
+      font-size:clamp(2.6rem,5.8vw,5rem)!important;
+      line-height:1.02;margin:.15rem 0 1rem;color:#f5faff!important;
+    }
+    .ignis-ui-hero h1 span{color:#6ad3ff!important}
+    .ignis-ui-hero p {
+      font-size:1.02rem;line-height:1.65;
+      color:#d6e7f5;max-width:590px;margin:0;
+    }
+    .ignis-ui-hero-facts {
+      display:flex;flex-wrap:wrap;gap:12px;
+      margin-top:1.6rem;font-size:.82rem;color:#bddbea;
+    }
+    .ignis-ui-hero-facts span {
+      padding:.55rem .85rem;border-radius:4px;
+      background:rgba(8,24,43,.70);
+      border:1px solid rgba(114,180,209,.28);
+    }
+    .ignis-ui-card {
+      background:#10263c;border:1px solid var(--ignis-border);
+      border-radius:var(--ignis-radius-panel);
+      padding:18px;min-height:142px;margin-bottom:10px;
+      box-shadow:none;
+    }
     .ignis-ui-card b{font-size:1.02rem;color:#e9f8ff}
     .ignis-ui-card p{color:#bcd5e3;margin:.55rem 0 0;line-height:1.55}
     .ignis-ui-subtitle{color:#a9c9dc;font-size:.9rem}
-    .ignis-ui-bar{height:2px;background:linear-gradient(90deg,#37c4db,transparent);
-      margin:.6rem 0 1.25rem}
-    @media(max-width:850px){
-      .ignis-ui-hero{min-height:300px;background-position:66% center}
+    .ignis-ui-bar {
+      height:2px;background:linear-gradient(90deg,#37c4db,transparent);
+      margin:.6rem 0 1.25rem;
+    }
+    @media(max-width:850px) {
+      .block-container,[data-testid="stMainBlockContainer"] {
+        padding:.8rem .65rem 1.75rem!important;
+      }
+      .ignis-ui-topbar {padding:.65rem .75rem}
+      .ignis-ui-hero {
+        min-height:300px;background-position:66% center;
+        padding:clamp(22px,5vw,36px);
+      }
       .ignis-ui-links a{padding:7px 9px;font-size:.76rem}
       .ignis-ui-hero-facts{gap:6px}
-      .block-container{padding-left:.85rem;padding-right:.85rem}
+      .ignis-ui-card{min-height:0}
     }
     </style>""",unsafe_allow_html=True)
 
