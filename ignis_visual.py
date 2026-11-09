@@ -27,19 +27,134 @@ def apply_visual_theme():
       box-sizing:border-box;
       padding: .9rem clamp(.6rem,1.15vw,1.35rem) 2.6rem!important;
     }
+    /* Sidebar premium: marca compacta + navegación tipo producto. */
     section[data-testid="stSidebar"] {
-      background:#0c1d32!important;
-      border-right:1px solid #284963;
+      background:linear-gradient(175deg,#0b1b2e 0%,#0b182a 55%,#0a1424 100%)!important;
+      border-right:1px solid #30516a;
+    }
+    section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+      padding:1.2rem .78rem 1.65rem!important;
+    }
+    .ignis-side-brand {
+      display:flex;align-items:center;gap:.85rem;
+      padding:0 .25rem .9rem;border-bottom:1px solid rgba(112,168,194,.17);
+    }
+    .ignis-side-logo {
+      width:51px;height:51px;flex:0 0 51px;
+      display:flex;align-items:center;justify-content:center;
+      background:#0e263c;border:1px solid #426d87;border-radius:5px;
+    }
+    .ignis-side-logo img{width:43px;height:43px;object-fit:contain}
+    .ignis-side-logo-fallback{font-size:27px;color:#60cbdc}
+    .ignis-side-brand-copy{display:flex;flex-direction:column;min-width:0}
+    .ignis-side-brand-copy strong{
+      color:#f2f8fd;font-size:1.17rem;letter-spacing:.012em;line-height:1.2;
+    }
+    .ignis-side-brand-copy strong span{color:#64d7ec}
+    .ignis-side-brand-copy small{
+      color:#8daec2;font-size:.60rem;font-weight:750;
+      letter-spacing:.115em;margin-top:.38rem;
+    }
+    .ignis-side-project{
+      background:rgba(19,49,73,.48);border:1px solid rgba(83,141,170,.2);
+      color:#a9d2e4;padding:8px 10px;margin:12px 0 19px;
+      border-radius:4px;font-size:.68rem;font-weight:740;letter-spacing:.09em;
+    }
+    .ignis-side-project span{color:#4ecfe1;padding:0 .26rem}
+    .ignis-side-section-title{
+      border-top:1px solid rgba(123,166,190,.17);
+      padding:17px 7px 9px;margin-top:8px;
+      color:#85a8bf;font-weight:800;letter-spacing:.13em;font-size:.64rem;
+    }
+    /* Los radio buttons siguen siendo accesibles, pero su indicador
+       nativo no se muestra; la selección se representa mediante una línea. */
+    section[data-testid="stSidebar"] div[role="radiogroup"]{
+      display:flex;flex-direction:column;gap:2px;
     }
     section[data-testid="stSidebar"] div[role="radiogroup"] label {
-      display:flex;align-items:center;width:100%;box-sizing:border-box;
-      padding:.48rem .65rem;margin:2px 0;border-radius:4px;
-      border:1px solid transparent;background:transparent;
-      transition:background-color .15s ease,border-color .15s ease;
+      position:relative;display:flex;align-items:center;width:100%;
+      box-sizing:border-box;min-height:38px;padding:8px 9px 8px 12px;
+      border:1px solid transparent;border-radius:4px;
+      background:transparent;color:#b7d0df;
+      font-size:.81rem;font-weight:520;cursor:pointer;
+      transition:background .15s ease,color .15s ease,border-color .15s ease;
     }
-    section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked) {
-      border-color:#42b7d0;background:rgba(33,143,177,.19);
+    section[data-testid="stSidebar"] div[role="radiogroup"] label
+      > :first-child:not([data-testid="stMarkdownContainer"]):has(input[type="radio"]){
+      position:absolute!important;opacity:0!important;
+      width:1px!important;height:1px!important;overflow:hidden!important;
+      pointer-events:none!important;
     }
+    section[data-testid="stSidebar"] div[role="radiogroup"] label
+      [data-testid="stMarkdownContainer"] p{
+      margin:0!important;line-height:1.25!important;font-size:.81rem!important;
+      white-space:normal;
+    }
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked){
+      background:linear-gradient(90deg,rgba(29,96,122,.48),rgba(13,41,66,.45));
+      border-color:rgba(79,166,196,.37);color:#f7fbff;font-weight:700;
+    }
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)::before{
+      content:"";position:absolute;left:-1px;top:5px;bottom:5px;
+      width:3px;background:#46d2e7;border-radius:1px;
+      box-shadow:0 0 12px rgba(52,199,228,.34);
+    }
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:hover{
+      background:rgba(41,93,120,.22);color:#effaff;
+    }
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:focus-within{
+      outline:2px solid rgba(83,216,235,.72);outline-offset:1px;
+    }
+    section[data-testid="stSidebar"] [data-testid="stRadio"]{
+      margin:0 0 .35rem!important;
+    }
+    section[data-testid="stSidebar"] label:not(:has(input[type="radio"])){
+      color:#bbd5e2;font-size:.79rem;
+    }
+    section[data-testid="stSidebar"] div[data-baseweb="select"]>div{
+      background:#102a41!important;border:1px solid #36536a!important;
+      border-radius:4px!important;min-height:42px;
+    }
+    section[data-testid="stSidebar"] [data-testid="stSelectbox"],
+    section[data-testid="stSidebar"] [data-testid="stMultiSelect"]{
+      margin-bottom:.35rem;
+    }
+    section[data-testid="stSidebar"] [data-testid="stLinkButton"] a{
+      width:100%;justify-content:flex-start;
+      color:#c7e2f1!important;background:#0d253b!important;
+      border:1px solid rgba(91,147,178,.35)!important;
+      font-size:.77rem!important;min-height:39px!important;
+      border-radius:4px!important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stLinkButton"] a:hover{
+      background:#173750!important;border-color:#6acadd!important;
+    }
+    .ignis-side-data-status,.ignis-side-empty{
+      background:rgba(12,45,63,.55);
+      border:1px solid rgba(68,160,184,.27);
+      border-radius:4px;padding:10px 11px;
+      color:#b7d8e5;font-size:.75rem;margin:9px 0 12px;
+    }
+    .ignis-side-status-dot{
+      display:inline-block;width:6px;height:6px;background:#58c8d6;
+      border-radius:50%;margin-right:8px;vertical-align:middle;
+      box-shadow:0 0 7px rgba(68,186,208,.26);
+    }
+    .ignis-side-empty .ignis-side-status-dot{background:#7f9da9;box-shadow:none}
+    .ignis-side-empty small{
+      display:block;color:#88a7ba;line-height:1.5;
+      padding-left:14px;margin-top:7px;font-size:.73rem;
+    }
+    .ignis-side-footer{
+      margin:16px 2px 0;padding:12px 6px 4px;
+      border-top:1px solid rgba(103,154,181,.25);
+      font-size:.69rem;color:#8aa7b7;line-height:1.65;
+    }
+    .ignis-side-footer-accent{
+      display:inline-block;width:18px;height:2px;background:#43c8db;
+      vertical-align:middle;margin-right:7px;
+    }
+
     [data-testid="stMetric"] {
       background:linear-gradient(125deg,#14283f,#0d2036)!important;
       border:1px solid var(--ignis-border)!important;
