@@ -1,5 +1,6 @@
 import json
 import math
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable, List, Optional
 
@@ -96,21 +97,15 @@ def _parse_tle_pair(raw_text: str) -> Optional[tuple]:
     return line1, line2
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_celestrak_tle(catalog_num: str) -> Optional[str]:
     url = f"https://celestrak.org/NORAD/elements/gp.php?CATNR={catalog_num}&FORMAT=TLE"
-    last_error = None
-    for attempt in range(2):
-        try:
-            response = requests.get(url, timeout=8)
-            response.raise_for_status()
-            pair = _parse_tle_pair(response.text)
-            return "\n".join(pair) if pair else None
-        except Exception as exc:  # pragma: no cover - network fallback
-            last_error = exc
-    if last_error is not None:
+    try:
+        response = requests.get(url, timeout=(3, 4))
+        response.raise_for_status()
+        pair = _parse_tle_pair(response.text)
+        return "\n".join(pair) if pair else None
+    except requests.RequestException:
         return None
-    return None
 
 
 def _utc_to_jd_utc(dt: datetime) -> float:
@@ -177,21 +172,29 @@ def _generate_simulated_orbit(name: str, steps: int = 80) -> List[Dict[str, floa
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
-def _build_satellite_payload() -> List[Dict[str, Any]]:
+def _build_satellite_payload(use_live_tle: bool = False) -> List[Dict[str, Any]]:
+    """Renderiza inmediatamente en modo ilustrativo; TLE actuales bajo demanda.
+
+    Los TLE consultados NO reconstruyen la fecha histórica de los puntos FIRMS.
+    """
+    fetched: Dict[str, Optional[str]] = {}
+    if use_live_tle:
+        # Cinco peticiones independientes a CelesTrak en paralelo.
+        # El modo predeterminado evita cualquier espera de red.
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            results = list(executor.map(
+                _fetch_celestrak_tle,
+                [sat["catalog"] for sat in SATELLITE_CATALOG],
+            ))
+        fetched = {sat["catalog"]: value
+                   for sat, value in zip(SATELLITE_CATALOG, results)}
+
     payload: List[Dict[str, Any]] = []
     for sat in SATELLITE_CATALOG:
-        orbit_data: List[Dict[str, Any]] = []
-        mode = "ilustrativa"
-        tle_text = _fetch_celestrak_tle(sat["catalog"])
+        positions: List[Dict[str, float]] = []
+        tle_text = fetched.get(sat["catalog"])
         if tle_text:
-            orbit_data = _generate_orbit_positions_from_tle(tle_text)
-            if orbit_data:
-                mode = "real"
-        if not orbit_data:
-            # El frontend dibuja un aro punteado esquemático, nunca una órbita
-            # calculada ni una localización histórica ficticia.
-            orbit_data = []
-            mode = "ilustrativa"
+            positions = _generate_orbit_positions_from_tle(tle_text)
         payload.append({
             "name": sat["name"],
             "sensor": sat["sensor"],
@@ -199,8 +202,8 @@ def _build_satellite_payload() -> List[Dict[str, Any]]:
             "orbit": sat["orbit"],
             "source": sat["source"],
             "color": sat["color"],
-            "mode": mode,
-            "positions": orbit_data,
+            "mode": "tle_actual" if positions else "ilustrativa",
+            "positions": positions,
         })
     return payload
 
@@ -273,6 +276,20 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
             color: #dfeaff; background: rgba(8, 16, 30, 0.75); border: 1px solid rgba(110, 138, 255, 0.65);
             backdrop-filter: blur(6px);
           }}
+          .ignis-globe-watermark {{
+            position:absolute; top:18px; right:18px; z-index:10;
+            color:#effcff; padding:9px 13px; border-radius:11px;
+            background:rgba(3,14,28,.75); border:1px solid rgba(61,180,223,.38);
+            font:bold 12px Arial,sans-serif; letter-spacing:.09em;
+            pointer-events:none;
+          }}
+          .ignis-globe-watermark span {{font-weight:400;color:#81cae5}}
+          .ignis-globe-help {{
+            position:absolute; bottom:19px; left:18px; z-index:10;
+            color:#c8e0ef;padding:8px 12px;border-radius:10px;
+            background:rgba(3,14,28,.76);font:12px Arial,sans-serif;
+            pointer-events:none;
+          }}
           canvas {{
             display: block; width: 100% !important; height: 100% !important;
           }}
@@ -280,7 +297,11 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
       </head>
       <body>
         <div id="globe-shell">
-          <div id="ignis-globe-status">Inicializando 3D...</div>
+          <div id="ignis-globe-status">Preparando globo 3D...</div>
+          <div class="ignis-globe-watermark">
+            IGNIS UY <span>· EXPLORADOR 3D</span>
+          </div>
+          <div class="ignis-globe-help">Arrastrar para rotar · Rueda para acercar</div>
           <div id="globe-root"></div>
         </div>
         <script type="importmap">
@@ -553,112 +574,123 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
 
 
 def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
-    st.markdown(
-        """
-        <style>
-        .ignis-space-shell {
-            margin-top: 0.2rem;
-            margin-bottom: 1rem;
-        }
-        .ignis-space-metrics {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 12px;
-            margin: 1rem 0 1.2rem;
-        }
-        .ignis-space-metric {
-            background: linear-gradient(135deg, rgba(17, 29, 58, 0.92), rgba(17, 44, 68, 0.76));
-            border: 1px solid rgba(126, 153, 255, 0.38);
-            border-radius: 14px;
-            padding: 0.8rem 0.9rem;
-            box-shadow: 0 10px 20px rgba(7, 11, 21, 0.18);
-        }
-        .ignis-space-metric .label {
-            font-size: 11px;
-            letter-spacing: 0.09em;
-            text-transform: uppercase;
-            color: #9ab1ef;
-            margin-bottom: 0.35rem;
-            font-weight: 700;
-        }
-        .ignis-space-metric .value {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #f2f7ff;
-        }
-        .ignis-space-metric .sub {
-            font-size: 12px;
-            color: #bfd2ff;
-            margin-top: 0.2rem;
-        }
-        @media (max-width: 900px) {
-           .ignis-space-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-        }
-        @media (max-width: 560px) {
-           .ignis-space-metrics { grid-template-columns: 1fr; }
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.subheader("🌍 ESPACIO / SEGUIMIENTO SATELITAL")
-    st.caption("Globo terrestre interactivo, foco geográfico en Uruguay y trazado de observaciones térmicas con contexto orbital. Cuando no hay TLE activo, el sistema presenta una simulación claramente identificada para mantener la experiencia visual sin confundirla con datos reales.")
+    """Espacio inmersivo: globo protagonista, controles laterales y fecha inferior."""
+    st.markdown("""
+    <style>
+    .ignis-space-kicker{font-size:.76rem;font-weight:800;letter-spacing:.13em;
+      color:#4fd1eb;text-transform:uppercase;margin-bottom:.4rem}
+    .ignis-space-subtitle{color:#b5d1e3;font-size:.92rem;line-height:1.55;
+      margin-bottom:1.1rem}
+    .ignis-orbit-guide{background:linear-gradient(135deg,#102a45,#0b1b30);
+      border:1px solid #326180;border-radius:14px;padding:13px 15px;
+      font-size:.81rem;color:#c6deec;line-height:1.55}
+    .ignis-orbit-guide strong{color:#f2fbff}
+    </style>
+    <div class="ignis-space-kicker">Explorador geoespacial · NASA FIRMS</div>
+    <div class="ignis-space-subtitle">Navegá alrededor de la Tierra, compará
+    las observaciones MODIS–VIIRS y explorá trayectorias satelitales.
+    Las órbitas ilustrativas no representan pasadas históricas reales.</div>
+    """, unsafe_allow_html=True)
 
     frame = _normalize_fire_frame(df)
-    if df is None or df.empty:
-        st.info("Sin detecciones cargadas. La Tierra sigue disponible para rotación, zoom y navegación orbital; cargá observaciones para activar los focos térmicos.")
-        st.caption("Estado: sin datos. La capa 3D sigue visible pero no se renderizan puntos térmicos hasta cargar un archivo.")
-    elif not frame.empty:
-        dates_count = len(pd.to_datetime(frame["fecha"], utc=True).dt.date.unique())
-        hotspots_count = len(frame)
-        sensors_count = frame["instrumento"].nunique()
-        coverage_text = "TLE + síntesis"
-        st.markdown(
-            f'''
-            <div class="ignis-space-shell">
-              <div class="ignis-space-metrics">
-                <div class="ignis-space-metric"><div class="label">Registros</div><div class="value">{hotspots_count:,}</div><div class="sub">Focos térmicos</div></div>
-                <div class="ignis-space-metric"><div class="label">Fechas</div><div class="value">{dates_count}</div><div class="sub">En el conjunto</div></div>
-                <div class="ignis-space-metric"><div class="label">Sensores</div><div class="value">{sensors_count}</div><div class="sub">Instrumentos activos</div></div>
-                <div class="ignis-space-metric"><div class="label">Orbita</div><div class="value">{coverage_text}</div><div class="sub">Visualización</div></div>
-              </div>
-            </div>
-            ''',
-            unsafe_allow_html=True,
-        )
-    elif frame.empty:
-        st.warning("El conjunto cargado no tiene coordenadas geográficas válidas para renderizar capas espaciales. El globo sigue operativo sin observaciones.")
-
     date_options = sorted(pd.to_datetime(frame["fecha"], utc=True).dt.date.unique())
-    if not date_options:
-        st.warning("No hay fechas válidas en el conjunto cargado para la vista espacial.")
-        return
-    selected_date = st.select_slider("Fecha focal", options=date_options, value=date_options[-1], key="ignis_space_date")
 
-    satellite_options = ["Todos"] + sorted(frame["satellite"].dropna().astype(str).unique().tolist())
-    selected_satellite = st.selectbox("Satélite", options=satellite_options, index=0, key="ignis_space_satellite")
+    # La columna principal reserva el espacio del globo ANTES de mostrar
+    # la línea temporal. El iframe se rellena luego de leer los filtros.
+    controls_col, globe_col = st.columns([1, 3.1], gap="medium")
+    with globe_col:
+        globe_slot = st.empty()
+        with st.container(border=True):
+            st.caption("LÍNEA TEMPORAL · OBSERVACIONES FIRMS")
+            if date_options:
+                selected_date = st.select_slider(
+                    "Fecha de observación", options=date_options,
+                    value=date_options[-1], key="ignis_space_date",
+                )
+            else:
+                selected_date = None
+                st.caption("Sin fechas cargadas. El globo puede explorarse sin registros.")
+            st.caption("La fecha cambia los focos térmicos, no los TLE actuales.")
 
-    region_options = ["global", "south_america", "uruguay", "selected"]
-    selected_region = st.selectbox("Vista", options=region_options, index=2, key="ignis_space_region")
-    col_a, col_b, col_c, col_d = st.columns(4)
-    with col_a:
-        show_satellites = st.checkbox("Satélites", value=True, key="ignis_space_show_satellites")
-    with col_b:
-        show_orbits = st.checkbox("Órbitas", value=True, key="ignis_space_show_orbits")
-    with col_c:
-        show_hotspots = st.checkbox("Focos de calor", value=True, key="ignis_space_show_hotspots")
-    with col_d:
-        show_bounds = st.checkbox("Límites geográficos", value=True, key="ignis_space_show_bounds")
+    with controls_col:
+        with st.container(border=True):
+            st.markdown("#### 🛰️ Explorador orbital")
+            st.caption("Configurá las capas del globo.")
+            selected_region = st.selectbox(
+                "Enfoque geográfico",
+                options=["uruguay", "south_america", "global", "selected"],
+                index=0, key="ignis_space_region",
+                format_func=lambda item: {
+                    "uruguay": "🇺🇾 Uruguay",
+                    "south_america": "🌎 Sudamérica",
+                    "global": "🌍 Tierra completa",
+                    "selected": "📍 Zona seleccionada",
+                }.get(item, item),
+            )
+            options = ["Todos"] + sorted(
+                frame["satellite"].dropna().astype(str).unique().tolist()
+            )
+            selected_satellite = st.selectbox(
+                "Filtrar observaciones", options=options, index=0,
+                key="ignis_space_satellite",
+            )
+            st.caption("CAPAS VISIBLES")
+            show_satellites = st.checkbox(
+                "Satélites", value=True, key="ignis_space_show_satellites")
+            show_orbits = st.checkbox(
+                "Órbitas", value=True, key="ignis_space_show_orbits")
+            show_hotspots = st.checkbox(
+                "Focos térmicos", value=True, key="ignis_space_show_hotspots")
+            show_bounds = st.checkbox(
+                "Límites geográficos", value=True, key="ignis_space_show_bounds")
+            orbit_mode = st.radio(
+                "Fuente de trayectorias",
+                ["Esquemas ilustrativos", "TLE actuales"],
+                index=0, key="ignis_orbit_source",
+                help="Los TLE actuales no reconstruyen órbitas en fechas históricas FIRMS.",
+            )
+        with st.container(border=True):
+            st.caption("DATOS CARGADOS EN ESTA SESIÓN")
+            q1, q2 = st.columns(2, gap="small")
+            q1.metric("Registros", f"{len(frame):,}" if len(frame) else "—")
+            q2.metric("Fechas", len(date_options))
+            q3, q4 = st.columns(2, gap="small")
+            q3.metric("Sensores", frame["instrumento"].nunique() if len(frame) else "—")
+            q4.metric("Modo orbital", "TLE" if orbit_mode == "TLE actuales" else "Esquema")
+        st.markdown(
+            '<div class="ignis-orbit-guide"><strong>Cómo interpretar las líneas</strong>'
+            '<p>— Continuas: trayectoria calculada con TLE reciente, cuando esté disponible.'
+            '<p>┄ Punteadas: visualización ilustrativa, no una órbita validada.'
+            '<p>Los puntos naranjas representan anomalías térmicas, no incendios confirmados.'
+            '</div>', unsafe_allow_html=True,
+        )
 
     filtered_frame = frame.copy()
     filtered_frame["fecha"] = pd.to_datetime(filtered_frame["fecha"], utc=True)
-    filtered_frame = filtered_frame[filtered_frame["fecha"].dt.date == selected_date]
+    if selected_date is not None:
+        filtered_frame = filtered_frame[
+            filtered_frame["fecha"].dt.date == selected_date
+        ]
+    else:
+        filtered_frame = filtered_frame.iloc[0:0]
     if selected_satellite != "Todos":
-        filtered_frame = filtered_frame[filtered_frame["satellite"].str.contains(selected_satellite, case=False, na=False)]
+        filtered_frame = filtered_frame[
+            filtered_frame["satellite"].str.contains(
+                selected_satellite, case=False, na=False)
+        ]
+    hotspots = _build_hotspot_payload(
+        filtered_frame, selected_date=selected_date,
+        satellite_filter=selected_satellite,
+    )
 
-    hotspot_payload = _build_hotspot_payload(filtered_frame, selected_date=selected_date, satellite_filter=selected_satellite)
-    satellite_payload = _build_satellite_payload()
+    # La carga de TLE se hace por solicitud explícita. El modo normal no accede
+    # a CelesTrak y el globo abre sin depender de esa red externa.
+    use_live_tle = orbit_mode == "TLE actuales"
+    if use_live_tle:
+        with st.spinner("Cargando TLE actuales de CelesTrak…"):
+            satellites = _build_satellite_payload(use_live_tle=True)
+    else:
+        satellites = _build_satellite_payload(use_live_tle=False)
 
     config = {
         "region": selected_region,
@@ -666,55 +698,30 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
         "show_orbits": show_orbits,
         "show_hotspots": show_hotspots,
         "show_bounds": show_bounds,
-        "satellites": satellite_payload,
-        "hotspots": hotspot_payload,
+        "satellites": satellites,
+        "hotspots": hotspots,
     }
 
-    st.markdown(
-        """
-        <style>
-        .ignis-space-viewport {
-            border: 1px solid rgba(125, 156, 255, 0.48);
-            border-radius: 20px;
-            overflow: hidden;
-            box-shadow: 0 22px 42px rgba(3, 8, 20, 0.6);
-            height: min(78vh, 860px);
-            min-height: 560px;
-            background: linear-gradient(180deg, rgba(2,8,18,1), rgba(9,17,31,1));
-        }
-        .ignis-space-panel {
-            position: sticky;
-            bottom: 12px;
-            z-index: 1000;
-            margin-top: 12px;
-            padding: 12px 16px;
-            border: 1px solid rgba(134, 159, 255, 0.38);
-            border-radius: 16px;
-            background: rgba(10, 18, 31, 0.9);
-            backdrop-filter: blur(8px);
-            box-shadow: 0 -10px 22px rgba(0,0,0,0.22);
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
+    with globe_slot:
+        components.html(_render_globe_html(config), height=690, scrolling=False)
+
+    with globe_col:
+        count = len(filtered_frame)
+        st.caption(
+            f"**{count:,} observaciones térmicas** para la fecha y sensor seleccionados. "
+            "Modo orbital: TLE actuales si se solicitaron, de lo contrario esquemas "
+            "ilustrativos. El globo permite arrastrar para rotar y desplazar la rueda "
+            "para acercar."
+        )
+        if not frame.empty and frame["frp"].notna().any():
+            with st.expander("Ver registros de la fecha seleccionada", expanded=False):
+                fields = ["fecha", "latitude", "longitude", "instrumento",
+                          "satellite", "frp", "confidence"]
+                st.dataframe(filtered_frame[fields], use_container_width=True,
+                             hide_index=True, height=260)
+
+    st.caption(
+        "Aviso científico: las trayectorias TLE son aproximaciones actuales y no "
+        "corresponden a las fechas históricas FIRMS. Las trayectorias punteadas son "
+        "únicamente esquemáticas. IGNIS no emite alertas oficiales."
     )
-
-    globe_html = _render_globe_html(config)
-    components.html(globe_html, height=760, scrolling=False)
-
-    st.markdown("""
-    <div class="ignis-space-panel">
-      <div style="display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:center; color:#dfe9ff; font-size:13px;">
-        <span><strong>Control temporal</strong> · reproducción de la capa de focos térmicos y satélites</span>
-        <span>Órbitas sólidas: TLE actuales. Punteadas: esquemas ilustrativos sin TLE. No son reconstrucciones históricas.</span>
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    payload_summary = frame if not filtered_frame.empty else frame
-    if not payload_summary.empty:
-        st.write(f"Total de focos visibles para la fecha seleccionada: {len(filtered_frame):,} registros")
-        if selected_satellite != "Todos":
-            st.caption(f"Filtro satelital activo: {selected_satellite}")
-
-    st.caption("Importante: la posición de un satélite no se interpreta como la ubicación del foco térmico detectado. Las observaciones siguen siendo registros de detección, no incendios confirmados ni alertas operativas.")
