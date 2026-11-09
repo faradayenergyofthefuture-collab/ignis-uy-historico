@@ -269,6 +269,164 @@ def apply_visual_theme():
       .ignis-ui-card{min-height:0}
     }
     </style>""",unsafe_allow_html=True)
+    st.markdown(_reference_styles(),unsafe_allow_html=True)
+
+
+
+def _reference_styles():
+    """Ajustes visuales de la maqueta seleccionada: no modifica los datos."""
+    from urllib.parse import quote
+    css = r"""<style>
+    .stApp{--ignis-aqua:#35e4ee;background:radial-gradient(ellipse at 50% 0%,#071c30,#04111e 70%)!important}
+    .block-container,[data-testid="stMainBlockContainer"]{padding-top:.35rem!important}
+    .ignis-ui-topbar{min-height:76px;padding:12px 20px!important;background:#061726!important;border-color:#306281!important}
+    .ignis-ui-wordmark{font-size:1.16rem!important;gap:14px}
+    .ignis-ui-wordmark img{width:52px!important;height:52px!important}
+    .ignis-ui-wordmark small{font-size:.79rem!important;margin-top:5px}
+    .ignis-ui-links a{padding:10px 15px!important;border-color:#386980!important;color:#e2f8ff!important}
+    .ignis-ui-hero{
+      position:relative;overflow:hidden;isolation:isolate;
+      min-height:421px!important;padding:clamp(29px,3.3vw,62px)!important;
+      background-size:cover!important;background-position:center right!important;
+      margin-bottom:14px!important;border-color:#326782!important}
+    .ignis-ui-hero::after{
+      content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+      background:linear-gradient(90deg,rgba(0,8,22,.58),rgba(0,14,27,.12) 70%)}
+    .ignis-ui-hero .ignis-ui-kicker{
+      font-size:.83rem!important;letter-spacing:.13em!important;
+      color:#b9dbe5!important;max-width:680px;padding-left:16px;
+      border-left:3px solid #22dced;margin-bottom:15px}
+    .ignis-ui-hero h1{
+      font-size:clamp(3.2rem,5.45vw,5.3rem)!important;line-height:1.03!important;
+      font-weight:850!important;letter-spacing:-.035em!important;
+      color:#fbfdff!important;text-shadow:0 4px 20px #031124}
+    .ignis-ui-hero h1 span{
+      background:linear-gradient(100deg,#52edf6,#47aaff);
+      -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+    .ignis-ui-hero p{font-size:1.05rem!important;max-width:575px!important;color:#ecf8ff!important;text-shadow:0 2px 12px #021226}
+    .ignis-ui-hero-facts{gap:12px!important;margin-top:20px!important}
+    .ignis-ui-hero-facts span{
+      display:inline-flex;align-items:center;gap:7px;font-size:.8rem!important;
+      border:1px solid #3a8298!important;background:rgba(3,32,51,.76)!important;
+      padding:9px 12px!important;border-radius:3px!important}
+    .ignis-ui-hero-facts svg{height:17px;width:17px;stroke:#36e4ee;flex:none}
+    div.st-key-hero_to_history button,div.st-key-hero_to_dashboard button,div.st-key-hero_to_upload button{
+      min-height:60px!important;border-radius:3px!important;padding:0 18px!important;
+      border:1px solid #3a829d!important;display:flex;align-items:center;gap:13px;
+      background:linear-gradient(90deg,#06344a,#07192b)!important;
+      font-size:1.02rem!important;font-weight:730!important}
+    div.st-key-hero_to_history button{
+      background:linear-gradient(105deg,#04bbcf,#028db1)!important;color:white!important;
+      box-shadow:0 7px 25px rgba(0,207,239,.18)!important}
+    div.st-key-hero_to_history button:hover,div.st-key-hero_to_dashboard button:hover,div.st-key-hero_to_upload button:hover{
+      border-color:#65e7ef!important;transform:translateY(-1px)}
+    div.st-key-hero_to_history button p,div.st-key-hero_to_dashboard button p,div.st-key-hero_to_upload button p{
+      flex:1!important;text-align:left!important;font-size:1.01rem!important}
+    div.st-key-hero_to_history button::after,div.st-key-hero_to_dashboard button::after,div.st-key-hero_to_upload button::after{
+      content:"→";font-size:1.36rem;margin-left:auto;opacity:.88}
+    div.st-key-hero_to_history button::before,div.st-key-hero_to_dashboard button::before,div.st-key-hero_to_upload button::before{
+      content:"";width:21px;height:21px;flex:0 0 21px;background:#a6faff;
+      -webkit-mask-size:contain;-webkit-mask-repeat:no-repeat;-webkit-mask-position:center;
+      mask-size:contain;mask-repeat:no-repeat;mask-position:center}
+    .ignis-home-section-title{
+      position:relative;font-size:1.7rem;font-weight:790;color:#f4fcff;
+      margin:16px 0;padding-left:20px;letter-spacing:-.02em}
+    .ignis-home-section-title::before{
+      content:"";position:absolute;left:0;top:4px;bottom:4px;width:4px;background:#0fd6e8}
+    .ignis-ui-card{
+      position:relative;isolation:isolate;overflow:hidden;min-height:195px!important;
+      padding:20px 22px!important;border-radius:3px!important;
+      border:1px solid #28627c!important;background:linear-gradient(125deg,#092c42,#061c2f)!important}
+    .ignis-ui-card::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;opacity:.64}
+    .ignis-ui-card--heat::after{
+      background:radial-gradient(circle at 94% 79%,#d78028 0 2px,transparent 13px),
+      radial-gradient(circle at 82% 68%,#f57d28 0 3px,transparent 20px),
+      radial-gradient(circle at 95% 78%,rgba(234,99,36,.64),transparent 32%),
+      repeating-linear-gradient(23deg,transparent 0 29px,#24879f28 30px,transparent 31px)}
+    .ignis-ui-card--atlas::after{
+      background:repeating-radial-gradient(ellipse at 91% 65%,transparent 0 11px,#05a7ca4d 12px,transparent 13px,transparent 24px)}
+    .ignis-ui-card--trace::after{
+      background:repeating-linear-gradient(90deg,transparent 0 24px,rgba(5,197,224,.09) 25px 33px,transparent 34px 38px)}
+    .ignis-feature-icon{
+      display:flex;align-items:center;justify-content:center;width:42px;height:42px;
+      border:1px solid #2e7f96;border-radius:6px;background:#083d53;margin-bottom:14px}
+    .ignis-feature-icon svg{width:25px;height:25px;stroke:#37e9f4;fill:none;stroke-width:1.8}
+    .ignis-ui-card b{font-size:1.15rem!important;color:#f6fbff!important}
+    .ignis-ui-card p{font-size:.94rem!important;max-width:320px;color:#d2e4ed!important}
+    .ignis-side-brand{gap:14px!important;border-bottom:0!important}
+    .ignis-side-logo{width:64px!important;height:64px!important;flex-basis:64px!important}
+    .ignis-side-logo img{width:56px!important;height:56px!important}
+    .ignis-side-brand-copy strong{font-size:1.35rem!important}
+    .ignis-side-brand-copy small{font-size:.68rem!important;color:#a9d0df!important}
+    .ignis-side-project{border-color:#25738d!important;background:#093047!important;color:#c2f3ff!important;padding:11px 12px!important;font-size:.71rem!important}
+    .ignis-side-section-title{font-size:.72rem!important;color:#a8d6e4!important}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label{
+      min-height:38px!important;padding:8px 8px 8px 44px!important;border-radius:3px!important}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label::after{
+      content:"";position:absolute;left:13px;top:50%;transform:translateY(-50%);
+      width:19px;height:19px;background:#9fcadf;pointer-events:none;
+      -webkit-mask-repeat:no-repeat;-webkit-mask-size:contain;-webkit-mask-position:center;
+      mask-repeat:no-repeat;mask-size:contain;mask-position:center}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)::after{background:#38e7f1}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked){background:linear-gradient(90deg,#0d4a61b5,#0b28404d)!important;border-color:#287e91!important}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label:has(input:checked)::before{top:0!important;bottom:0!important;width:4px!important;border-radius:0!important}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label [data-testid="stMarkdownContainer"] p{font-size:.86rem!important;color:#e0f0f5!important}
+    section[data-testid="stSidebar"] div[role="radiogroup"] label > div:first-child:has(input[type=radio]){width:1px!important;height:1px!important;position:absolute!important;overflow:hidden!important;opacity:0!important}
+    @media(max-width:900px){.ignis-ui-hero{min-height:385px!important;padding:27px!important}.ignis-ui-hero h1{font-size:clamp(2.7rem,8vw,4rem)!important}}
+    @media(max-width:600px){.ignis-ui-hero{min-height:410px!important}.ignis-ui-hero::after{background:linear-gradient(90deg,#001023d9,#00102388)}.ignis-ui-hero-facts{gap:5px!important}.ignis-ui-hero-facts span{font-size:.69rem!important;padding:7px!important}.ignis-ui-card{min-height:164px!important}}
+    </style>"""
+    strokes = [
+      '<path d="m3 10 9-7 9 7v10h-6v-6H9v6H3z"/>',
+      '<path d="m12 3 9 5-9 5-9-5 9-5zm-9 10 9 5 9-5M3 17l9 5 9-5"/>',
+      '<path d="M3 7h7l2 2h9v11H3z"/>',
+      '<path d="M4 19V10m5 9V4m5 15v-8m5 8V7"/>',
+      '<path d="m3 17 6-7 4 4 7-9M15 5h5v5"/>',
+      '<path d="M8 8a4 4 0 0 1 7-2l2 2m0-3v3h-3M16 16a4 4 0 0 1-7 2l-2-2m0 3v-3h3"/>',
+      '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/>',
+      '<path d="M12 3 2 21h20L12 3zM12 9v5m0 4h.01"/>',
+      '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
+      '<path d="M6 2h9l5 5v15H6zM15 2v6h5M9 12h8M9 16h8"/>',
+      '<path d="M12 19a7 7 0 1 0-7-7M12 8v4l3 2M4 20h.01"/>',
+      '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+      '<path d="M4 5h16v13H9l-5 4V5zM8 10h8m-8 4h5"/>',
+      '<path d="m3 9 9-6 9 6-9 6zM3 15l9 6 9-6M3 12l9 6 9-6"/>',
+      '<path d="M16 20v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 10a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 20v-2a4 4 0 0 0-3-3.9M16 2.1a4 4 0 0 1 0 7.8"/>',
+    ]
+    icons = []
+    for i, shape in enumerate(strokes, 1):
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+               'stroke="black" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+               + shape + '</svg>')
+        url = quote(svg, safe="")
+        selector = (f'section[data-testid="stSidebar"] div[role="radiogroup"] '
+                    f'label:nth-child({i})::after')
+        icons.append(f'<style>{selector}{{-webkit-mask-image:url("data:image/svg+xml,{url}");'
+                     f'mask-image:url("data:image/svg+xml,{url}");}}</style>')
+    for key, shape in (
+        ("hero_to_history",strokes[1]),
+        ("hero_to_dashboard",'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>'),
+        ("hero_to_upload",strokes[2]),
+    ):
+        svg = ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" '
+               'stroke="black" stroke-width="1.8">' + shape + '</svg>')
+        url = quote(svg, safe="")
+        icons.append('<style>div.st-key-' + key + ' button::before'
+                     + '{-webkit-mask-image:url("data:image/svg+xml,' + url +
+                     '");mask-image:url("data:image/svg+xml,' + url + '");}</style>')
+    return css + "".join(icons)
+
+
+def _feature_icon(kind):
+    shapes = {
+        "sat": '<rect x="5" y="8" width="14" height="8" rx="1"/><path d="m1 3 5 5m-5 6 5 5m12-11 5-5m-5 11 5 5"/>',
+        "map": '<path d="m3 6 6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/>',
+        "shield": '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>',
+        "calendar": '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 10h18"/>',
+        "location": '<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="2.5"/>',
+    }
+    return ('<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" '
+            'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" '
+            'stroke-linejoin="round">' + shapes[kind] + '</svg>')
 
 
 def _header(kicker, title, subtitle):
