@@ -109,7 +109,7 @@ def comparar_resoluciones(
 def diagnostico_comparabilidad(datos: pd.DataFrame | None) -> dict:
     """Resumen descriptivo: NO calcula ni autoriza una serie calibrada."""
     z = preparar_observaciones(datos)
-    meses = presencia_mensual(z)
+    meses = presencia_mensual(datos)
     return {
         "registros": int(len(z)),
         "meses_importados": int(len(meses)),
