@@ -667,10 +667,11 @@ def render_project_home(base, asset_uri, pages, navigate):
         'y exportaciones verificables, con demo sintética opcional.</div></div>',
         unsafe_allow_html=True,
     )
-    st.button(
-        "🧭 Abrir el Observatorio V6", type="primary", use_container_width=True,
-        key="hero_to_explorer", on_click=navigate, args=(pages[15],),
-    )
+    if len(pages) > 15:
+        st.button(
+            "🧭 Abrir el Observatorio V6", type="primary", use_container_width=True,
+            key="hero_to_explorer", on_click=navigate, args=(pages[15],),
+        )
     st.markdown(
         '<h2 class="ignis-home-section-title">Qué podés hacer en IGNIS</h2>',
         unsafe_allow_html=True,
