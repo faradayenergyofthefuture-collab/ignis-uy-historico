@@ -7,11 +7,11 @@
 | NASA FIRMS: MODIS Collection 6.1 | Implementado | Importación manual histórica CSV/ZIP, metadatos del instrumento | https://www.earthdata.nasa.gov/data/tools/firms |
 | NASA FIRMS: VIIRS S-NPP Collection 2 | Implementado | Registros históricos importados por el equipo | https://www.earthdata.nasa.gov/data/tools/firms |
 | NASA FIRMS: VIIRS NOAA-20 | Implementado | Datos históricos importados y consultas NRT | https://www.earthdata.nasa.gov/data/tools/firms |
-| NASA FIRMS: VIIRS NOAA-21 | NRT implementado; importación histórica en revisión | Monitor reciente mediante API, necesidad de ampliar y validar histórico | https://firms.modaps.eosdis.nasa.gov/api/ |
+| NASA FIRMS: VIIRS NOAA-21 | NRT e importación histórica implementados | Identificación de NOAA-21 por registro; cobertura histórica nacional todavía incompleta | https://firms.modaps.eosdis.nasa.gov/api/ |
 | NASA FIRMS Area API | Implementado, opt-in | Consulta reciente activada por usuario con `FIRMS_MAP_KEY` | https://firms.modaps.eosdis.nasa.gov/api/ |
 | Fuentes nacionales y prensa (Bomberos/PAIF, SINAE/MIRA) | Módulo piloto; validación institucional pendiente | Asociación exploratoria con datos cargados, catálogo y evidencia documental | https://www.gub.uy/sistema-nacional-emergencias/ |
-| NASA GIBS | Propuesto | Imágenes y capas por fecha para contexto independiente | https://gibs.earthdata.nasa.gov/ |
-| NASA Worldview | Propuesto | Enlace de inspección de un área y fecha | https://worldview.earthdata.nasa.gov/ |
+| NASA GIBS | Integración visual opcional V6 | Capas WMS térmicas por fecha habilitadas bajo demanda; algunas fechas o capas pueden carecer de teselas | https://gibs.earthdata.nasa.gov/ |
+| NASA Worldview | Enlace integrado | Inspección independiente de fecha y ubicación; no confirma incendios | https://worldview.earthdata.nasa.gov/ |
 | NASA EONET | Propuesto | Eventos naturales como contexto, NO verdad absoluta de incendios | https://eonet.gsfc.nasa.gov/ |
 | NASA POWER | Propuesto (variable auxiliar) | Contexto meteorológico; no detector de incendios | https://power.larc.nasa.gov/ |
 | Blue Marble / Black Marble | Referencia visual, no prueba térmica | Fondos e inspiración para visualizaciones; distinguir arte de datos | https://visibleearth.nasa.gov/ |
