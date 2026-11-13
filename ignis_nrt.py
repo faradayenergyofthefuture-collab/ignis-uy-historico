@@ -19,6 +19,8 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
+from ignis_worldview import enlace_worldview
+
 FUENTES = {
     "VIIRS NOAA-20": "VIIRS_NOAA20_NRT",
     "VIIRS NOAA-21": "VIIRS_NOAA21_NRT",
@@ -211,6 +213,22 @@ def mostrar_monitoreo_nrt():
              datos["adquisicion_utc"].max().strftime("%d/%m %H:%M") if datos["adquisicion_utc"].notna().any() else "Sin hora")
     st.markdown("#### Ubicación de las detecciones recibidas")
     _mapa_liviano(datos)
+    # Acceso contextual a imágenes NASA, sin agregar solicitudes externas en la app.
+    visibles = datos.dropna(subset=["adquisicion_utc", "latitude", "longitude"]).copy()
+    if not visibles.empty:
+        mas_reciente = visibles.sort_values("adquisicion_utc", ascending=False).iloc[0]
+        try:
+            st.link_button(
+                "Abrir última observación en NASA Worldview",
+                enlace_worldview(
+                    mas_reciente["adquisicion_utc"],
+                    mas_reciente["latitude"],
+                    mas_reciente["longitude"],
+                ),
+            )
+            st.caption("Worldview abre fecha y área aproximadas; activá las capas satelitales de interés. No constituye verificación de incendio.")
+        except (ValueError, TypeError):
+            pass
     st.caption("Recorte aproximado rectangular: puede incluir áreas fuera de Uruguay. Puntos limitados a 1200 por fuente en el mapa; la tabla y el CSV conservan todos los registros devueltos.")
     st.markdown("#### Detecciones por fuente (no incendios únicos)")
     recuentos = datos.groupby("producto").size().reset_index(name="observaciones")
