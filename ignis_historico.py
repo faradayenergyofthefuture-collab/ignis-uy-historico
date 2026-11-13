@@ -486,8 +486,10 @@ NAV_PAGES = [
     "🤖 ASK IGNIS",
     "🌎 Fusión cielo–tierra",
     "💬 Team IGNIS · Consultas y aportes",
-    "🧭 EXPLORADOR V6 · Datos NASA",
 ]
+# La navegación histórica conserva sus 15 rutas y sus íconos originales.
+# El Observatorio se registra a continuación sin alterar sus claves de UI.
+NAV_PAGES.append("🧭 EXPLORADOR V6 · Datos NASA")
 
 def _ignis_navigate_to(section: str) -> None:
     """El callback corre antes de reinstanciar el widget 'ignis_nav'."""
