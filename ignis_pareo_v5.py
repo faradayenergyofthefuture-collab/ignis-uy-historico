@@ -144,8 +144,10 @@ def emparejar_global(
         vecinos = cKDTree(x).query_ball_tree(cKDTree(y), r=radio_cuerda)
         m_ids = ma.index.to_numpy()
         v_ids = vi.index.to_numpy()
-        m_t = ma.instante.astype("int64").to_numpy()
-        v_t = vi.instante.astype("int64").to_numpy()
+        # Pandas 3 may store datetime64[us] by default; force ns so
+        # minute differences never change by a factor of 1000.
+        m_t = ma.instante.dt.as_unit("ns").astype("int64").to_numpy()
+        v_t = vi.instante.dt.as_unit("ns").astype("int64").to_numpy()
         for i, indices in enumerate(vecinos):
             for j in indices:
                 minutos = abs(int(m_t[i]) - int(v_t[j])) / 60_000_000_000
