@@ -15,8 +15,8 @@ def observaciones():
     return pd.DataFrame([
         {"fecha": "2026-01-15", "latitude": -33.01, "longitude": -56.01, "instrumento": "MODIS"},
         {"fecha": "2026-01-15", "latitude": -33.015, "longitude": -56.015, "instrumento": "VIIRS S-NPP"},
-        {"fecha": "2026-01-15", "latitude": -33.08, "longitude": -56.08, "instrumento": "MODIS"},
-        {"fecha": "2026-01-15", "latitude": -33.18, "longitude": -56.18, "instrumento": "VIIRS NOAA-20"},
+        {"fecha": "2026-01-15", "latitude": -33.48, "longitude": -56.48, "instrumento": "MODIS"},
+        {"fecha": "2026-01-15", "latitude": -33.58, "longitude": -56.58, "instrumento": "VIIRS NOAA-20"},
         {"fecha": "2026-02-01", "latitude": -33.015, "longitude": -56.015, "instrumento": "VIIRS NOAA-21"},
         {"fecha": "2025-01-15", "latitude": -33.01, "longitude": -56.01, "instrumento": "MODIS"},
         {"fecha": "2025-01-15", "latitude": -33.015, "longitude": -56.015, "instrumento": "VIIRS S-NPP"},
