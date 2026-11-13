@@ -835,7 +835,13 @@ if current_section==NAV_PAGES[5]:
             )
             pkm = st.slider('Pareo V5: distancia máxima (km)', 1, 20, 5, 1, key='ignis_v5_radio')
             pmin = st.slider('Pareo V5: diferencia temporal máxima (min)', 5, 120, 30, 5, key='ignis_v5_minutos')
-            firma = (str(selected), str(reg), tuple(sorted(map(str, sens))), len(sample), pkm, pmin)
+            # Impedir mostrar parejas antiguas si cambia el Maestro aunque
+            # el nuevo archivo tenga exactamente la misma cantidad de filas.
+            columnas_firma = ["fecha", "latitude", "longitude", "instrumento", "acq_time"]
+            huella_datos = int(pd.util.hash_pandas_object(
+                sample[columnas_firma].astype(str), index=False
+            ).sum())
+            firma = (str(selected), str(reg), tuple(sorted(map(str, sens))), len(sample), huella_datos, pkm, pmin)
             if st.button('Calcular parejas únicas', key='ignis_v5_ejecutar_pareo', type='primary'):
                 try:
                     parejas = emparejar_global(sample, ano=selected, radio_km=pkm, ventana_min=pmin)
