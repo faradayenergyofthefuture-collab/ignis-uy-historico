@@ -8,6 +8,8 @@ on:
       - "ignis_sensibilidad.py"
       - "ignis_pareo_v5.py"
       - "ignis_calidad.py"
+      - "ignis_firms_sensor.py"
+      - "ignis_nrt.py"
       - "ignis_worldview.py"
       - "ignis_historico.py"
       - "tests/test_ignis_sensibilidad.py"
@@ -35,7 +37,7 @@ jobs:
       - name: Install scientific dependencies
         run: python -m pip install "numpy>=1.24" "pandas>=2" "scipy>=1.11"
       - name: Compile Python sources
-        run: python -m py_compile ignis_sensibilidad.py ignis_historico.py ignis_pareo_v5.py ignis_calidad.py ignis_worldview.py
+        run: python -m py_compile ignis_sensibilidad.py ignis_historico.py ignis_pareo_v5.py ignis_calidad.py ignis_worldview.py ignis_firms_sensor.py ignis_nrt.py
       - name: Grid sensitivity tests
         run: python -m unittest discover -s tests -p 'test_ignis_sensibilidad.py' -v
       - name: UTC matching, quality and Worldview tests
