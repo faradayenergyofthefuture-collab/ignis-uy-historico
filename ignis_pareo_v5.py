@@ -27,8 +27,8 @@ def tiempos_adquisicion(datos: pd.DataFrame) -> pd.Series:
     if "acq_time" not in datos.columns:
         return pd.Series(pd.NaT, index=datos.index, dtype="datetime64[ns, UTC]")
     texto = (datos["acq_time"].fillna("").astype(str).str.strip()
-             .str.replace(r"\\.0$", "", regex=True))
-    valido = texto.str.fullmatch(r"\\d{1,4}").fillna(False)
+             .str.replace(r"\.0$", "", regex=True))
+    valido = texto.str.fullmatch(r"\d{1,4}").fillna(False)
     texto = texto.where(valido, "").str.zfill(4)
     hh = pd.to_numeric(texto.str.slice(0, 2), errors="coerce")
     mm = pd.to_numeric(texto.str.slice(2, 4), errors="coerce")
