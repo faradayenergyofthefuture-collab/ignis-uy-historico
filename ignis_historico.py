@@ -12,6 +12,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from ignis_coincidencias import emparejar, resumir_pares
 from ignis_sensibilidad import comparar_resoluciones, diagnostico_comparabilidad
+from ignis_calidad import auditar_datos, inventario_mensual, lectura_diagnostica
+from ignis_pareo_v5 import emparejar_global, resumen_global
+from ignis_worldview import enlace_worldview
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -802,10 +805,111 @@ if current_section==NAV_PAGES[5]:
             )
 
 
+        st.divider()
+        st.markdown('#### Auditoría científica del Maestro · calidad y disponibilidad')
+        st.caption('Este diagnóstico corresponde únicamente al recorte filtrado; los días sin detecciones importadas NO permiten inferir días observados sin fuego.')
+        audit = auditar_datos(sample)
+        aq1, aq2, aq3, aq4 = st.columns(4)
+        aq1.metric('Registros auditados', f"{audit['filas']:,}")
+        aq2.metric('Coordenadas válidas', f"{audit['coordenadas_validas']:,}")
+        aq3.metric('Hora UTC válida', f"{audit['horarios_validos']:,}")
+        aq4.metric('FRP disponible', f"{audit['frp_disponible']:,}")
+        for aviso in lectura_diagnostica(audit):
+            st.caption('• ' + aviso)
+        if selected is not None:
+            inventario = inventario_mensual(sample, int(selected))
+            with st.expander('Inventario mensual de fuentes · año seleccionado', expanded=False):
+                if inventario.empty:
+                    st.info('No hay meses importados con sensores reconocidos en este recorte.')
+                else:
+                    st.dataframe(inventario, use_container_width=True, hide_index=True)
+                    st.download_button(
+                        'Descargar inventario (CSV)',
+                        inventario.to_csv(index=False).encode('utf-8-sig'),
+                        file_name=f'IGNIS_inventario_instrumentos_{selected}.csv',
+                        mime='text/csv',
+                        key='ignis_inventario_csv',
+                    )
+                st.warning('Días con detecciones ≠ días de cobertura instrumental verificada. Los meses sin registros no prueban ausencia de incendios.')
+        with st.expander('Pareo V5 · parejas únicas y cruce de medianoche UTC (experimental)', expanded=False):
+            st.write(
+                'A diferencia del método original por día UTC, esta alternativa permite coincidencias '
+                'a ambos lados de la medianoche y utiliza como máximo una vez cada observación '
+                'MODIS y VIIRS en el resultado completo.'
+            )
+            pkm = st.slider('Pareo V5: distancia máxima (km)', 1, 20, 5, 1, key='ignis_v5_radio')
+            pmin = st.slider('Pareo V5: diferencia temporal máxima (min)', 5, 120, 30, 5, key='ignis_v5_minutos')
+            firma = (str(selected), str(reg), tuple(sorted(map(str, sens))), len(sample), pkm, pmin)
+            if st.button('Calcular parejas únicas', key='ignis_v5_ejecutar_pareo', type='primary'):
+                try:
+                    parejas = emparejar_global(sample, ano=selected, radio_km=pkm, ventana_min=pmin)
+                    st.session_state['ignis_pareo_v5_resultado'] = {'firma': firma, 'tabla': parejas}
+                except (ValueError, TypeError) as error:
+                    st.error(f'No se pudo ejecutar el pareo V5: {error}')
+            resultado = st.session_state.get('ignis_pareo_v5_resultado')
+            if resultado and resultado['firma'] == firma:
+                parejas = resultado['tabla']
+                rp = resumen_global(parejas)
+                r1, r2, r3 = st.columns(3)
+                r1.metric('Pares únicos', rp['pares'])
+                r2.metric('Cruces de día UTC', rp['cruces_medianoche'])
+                r3.metric('Distancia mediana', f"{rp['distancia_mediana_km']:.2f} km" if rp['distancia_mediana_km'] is not None else 'Sin pares')
+                if len(parejas):
+                    st.dataframe(parejas, use_container_width=True, hide_index=True)
+                    st.download_button(
+                        'Descargar parejas V5 (CSV)',
+                        parejas.to_csv(index=False).encode('utf-8-sig'),
+                        file_name=f'IGNIS_pares_unicos_{selected}.csv',
+                        mime='text/csv',
+                        key='ignis_v5_pares_csv',
+                    )
+                else:
+                    st.info('No hay parejas que cumplan ambos umbrales con datos horarios válidos.')
+            st.caption(
+                'El emparejamiento es voraz por diferencia horaria y distancia, '
+                'no una solución de asignación global de coste mínimo. '
+                'Pares candidatos no son incendios confirmados ni FRP calibrada.'
+            )
+
+
 # B — Atlas científico con mapa dominante, filtros y análisis lateral.
 if current_section == NAV_PAGES[6]:
     render_scientific_atlas(sample, selected, BASE, mapa_ignis, COLS,
                             NAV_PAGES, _ignis_navigate_to)
+    if not sample.empty and selected is not None:
+        with st.expander('Verificar una observación en NASA Worldview · fecha y lugar', expanded=False):
+            st.caption('Abrí imágenes satelitales del mismo día y zona. El enlace no confirma incendios ni garantiza una imagen libre de nubes.')
+            observables = sample[sample.anio == selected].copy()
+            observables['latitud'] = pd.to_numeric(observables['latitude'], errors='coerce')
+            observables['longitud'] = pd.to_numeric(observables['longitude'], errors='coerce')
+            observables = observables[
+                observables.latitud.between(-90, 90) &
+                observables.longitud.between(-180, 180)
+            ].copy()
+            if observables.empty:
+                st.info('Sin coordenadas válidas para este año.')
+            else:
+                dias = sorted(observables['fecha'].dropna().astype(str).unique(), reverse=True)
+                dia = st.selectbox('Día UTC', dias, key='ignis_worldview_dia')
+                del_dia = observables[observables['fecha'].astype(str) == dia].sort_values('instrumento').head(500).reset_index(drop=True)
+                if len(del_dia):
+                    indice = st.selectbox(
+                        'Observación del día (máximo 500 registros mostrados)',
+                        list(range(len(del_dia))),
+                        format_func=lambda i: (
+                            f"{del_dia.iloc[i]['instrumento']} · "
+                            f"{del_dia.iloc[i]['latitud']:.4f}, {del_dia.iloc[i]['longitud']:.4f}"
+                        ),
+                        key='ignis_worldview_observacion',
+                    )
+                    observacion = del_dia.iloc[indice]
+                    try:
+                        enlace = enlace_worldview(dia, observacion.latitud, observacion.longitud)
+                        st.link_button('Abrir fecha y lugar en NASA Worldview', enlace)
+                        st.caption(f"NASA Worldview · {dia} · {observacion.latitud:.4f}, {observacion.longitud:.4f}. Activá las capas térmicas deseadas dentro de Worldview.")
+                    except (ValueError, TypeError) as error:
+                        st.warning(f'No se pudo construir el enlace de NASA Worldview: {error}')
+
 
 
 if current_section==NAV_PAGES[7]:
