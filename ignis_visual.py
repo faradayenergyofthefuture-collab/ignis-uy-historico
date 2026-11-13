@@ -653,6 +653,24 @@ def render_project_home(base, asset_uri, pages, navigate):
     with right:
         st.button("Cargar datos", use_container_width=True,
                   key="hero_to_upload", on_click=navigate, args=(pages[2],))
+    # El Observatorio se destaca sin cambiar la estructura aprobada ni
+    # redirigir indebidamente los tres botones históricos.
+    st.markdown(
+        '<div style="margin:16px 0 6px;padding:21px 24px;border:1px solid #286987;'
+        'background:linear-gradient(105deg,#092439,#0a1a2e);border-radius:0">'
+        '<div style="font-size:.71rem;color:#70dfec;letter-spacing:.17em;'
+        'font-weight:800">NUEVO · EXPLORADOR CIENTÍFICO V6</div>'
+        '<div style="font-size:1.25rem;font-weight:800;color:#ebfaff;margin:7px 0">'
+        'Dos sensores. Dos calendarios. Una misma pregunta científica.</div>'
+        '<div style="color:#aecfdd;font-size:.86rem;line-height:1.55">'
+        'Comparación histórica, mapas NASA GIBS por fecha, fuentes documentadas '
+        'y exportaciones verificables, con demo sintética opcional.</div></div>',
+        unsafe_allow_html=True,
+    )
+    st.button(
+        "🧭 Abrir el Observatorio V6", type="primary", use_container_width=True,
+        key="hero_to_explorer", on_click=navigate, args=(pages[15],),
+    )
     st.markdown(
         '<h2 class="ignis-home-section-title">Qué podés hacer en IGNIS</h2>',
         unsafe_allow_html=True,
