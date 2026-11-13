@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+import io
 
 import numpy as np
 import pandas as pd
@@ -19,6 +20,7 @@ from ignis_explorer_data import (
     demo_sintetica, normalizar_explorador, resumen_explorador, series_anuales,
 )
 from ignis_worldview import enlace_worldview
+from ignis_harmonizacion_piloto import evaluar_prototipo
 
 COLOR_MODIS = "#F7A35B"
 COLOR_VIIRS = "#49D7E8"
@@ -345,6 +347,124 @@ def _metodo(datos):
     )
 
 
+
+def _calibracion(datos: pd.DataFrame, demo: bool = False):
+    st.markdown('<div class="ignis-x-section">06 / Laboratorio de comparabilidad instrumental</div>',unsafe_allow_html=True)
+    st.markdown(
+        "Kiln Watch utiliza modelos estadísticos y pruebas fuera de muestra para "
+        "estudiar saltos entre sensores. En IGNIS, este **piloto independiente** "
+        "permite explorar una razón de tasas MODIS–VIIRS solo si aportás "
+        "datos de oportunidades de observación de ambos instrumentos."
+    )
+    a,b,c=st.columns(3)
+    for col,title,subtitle in [
+        (a,"01 · Cobertura","Archivo externo con fechas y oportunidades instrumentales."),
+        (b,"02 · Ajuste","Factor agregado sobre meses históricos co-observados."),
+        (c,"03 · Prueba","Evaluación en meses posteriores excluidos del cálculo."),
+    ]:
+        with col:
+            st.markdown(
+                '<div class="ignis-x-step"><b>'+escape(title)+'</b><p>'
+                +escape(subtitle)+'</p></div>',unsafe_allow_html=True,
+            )
+    st.warning(
+        "Este laboratorio NO infiere cobertura a partir de detecciones FIRMS. "
+        "No hay cifras ajustadas sin un archivo externo. La cobertura aportada "
+        "no se verifica con NASA automáticamente y la razón experimental NO "
+        "equivale a una armonización científica validada."
+    )
+    if demo:
+        st.error(
+            "El cálculo se encuentra deshabilitado en la demo sintética. "
+            "Importá observaciones FIRMS reales en el Maestro y un registro de "
+            "oportunidades de observación verificable."
+        )
+        return
+    st.markdown("#### Esquema requerido para cobertura")
+    st.code("fecha_utc,familia,oportunidades,fuente\n"
+            "YYYY-MM-DD,MODIS,número_positivo,referencia_comprobable\n"
+            "YYYY-MM-DD,VIIRS,número_positivo,referencia_comprobable",
+            language="text")
+    st.caption(
+        "Una fila por día UTC y familia. Ambas familias deben figurar el mismo "
+        "día. 'Oportunidades' es una medida de exposición instrumental externa "
+        "adecuada a la zona y producto; NO equivale a la cantidad de detecciones. "
+        "El valor debe derivarse de metadatos de cobertura, no de este Maestro."
+    )
+    st.download_button(
+        "Descargar plantilla vacía de cobertura",
+        b"fecha_utc,familia,oportunidades,fuente\n",
+        file_name="IGNIS_PLANTILLA_COBERTURA.csv",
+        mime="text/csv",
+        key="ignis_v6_cobertura_plantilla",
+    )
+    archivo=st.file_uploader(
+        "Cargar CSV externo de oportunidades de observación",
+        type=["csv"],key="ignis_v6_archivo_cobertura",
+    )
+    if archivo is None:
+        st.info("Sin cobertura externa: se omite la estimación experimental y no se muestra ningún factor de calibración.")
+        return
+    if len(archivo.getvalue())>4_000_000:
+        st.error("El archivo de cobertura supera 4 MB. Acotá la zona o el período.")
+        return
+    try:
+        tabla=pd.read_csv(io.BytesIO(archivo.getvalue()))
+        resultado=evaluar_prototipo(datos,tabla)
+    except (ValueError,TypeError,pd.errors.ParserError,pd.errors.EmptyDataError,KeyError) as error:
+        st.error(f"No se pudo evaluar la cobertura: {error}")
+        return
+    if resultado["estado"] != "experimental":
+        st.warning("No se calcula un factor: "+resultado["motivo"])
+        if isinstance(resultado.get("meses"),pd.DataFrame) and not resultado["meses"].empty:
+            st.dataframe(resultado["meses"],use_container_width=True,hide_index=True)
+        return
+    beta=resultado["factor"]
+    lo,hi=resultado["factor_bootstrap_95"]
+    x,y,z=st.columns(3)
+    x.metric("Factor de tasa piloto",f"{beta:.3f}")
+    y.metric("MAE de referencia (sin factor)",f"{resultado['mae_original']:.2f}")
+    z.metric("MAE experimental (evaluación)",f"{resultado['mae_experimental']:.2f}")
+    st.caption(
+        f"Bootstrap del factor, IC percentil 95 %: [{lo:.3f}, {hi:.3f}]. "
+        f"Meses usados en ajuste: {resultado['meses_entrenamiento']}; "
+        f"meses reservados para evaluación: {resultado['meses_evaluacion']}. "
+        "El intervalo corresponde al FACTOR en estos datos, NO a incendios ni al riesgo."
+    )
+    evaluacion=resultado["meses"]
+    hold=evaluacion[evaluacion.subconjunto=="evaluación"].copy()
+    fig=go.Figure()
+    for col,color,name in [
+        ("Referencia MODIS",COLOR_MODIS,"MODIS en meses reservados"),
+        ("VIIRS crudo en escala MODIS","#8194a6","VIIRS tasa sin factor"),
+        ("VIIRS ajustado experimental",COLOR_VIIRS,"VIIRS tasa con factor piloto"),
+    ]:
+        fig.add_trace(go.Scatter(
+            x=hold["Mes UTC"],y=hold[col],mode="lines+markers",
+            name=name,line=dict(color=color,width=2),
+        ))
+    fig.update_layout(
+        template="plotly_dark",paper_bgcolor=BG,plot_bgcolor=BG,
+        height=370,margin=dict(l=15,r=15,t=25,b=32),
+        xaxis=dict(title="Mes UTC de evaluación",gridcolor="#20394b"),
+        yaxis=dict(title="Recuento de referencia MODIS (experimental)",gridcolor="#20394b"),
+        legend=dict(orientation="h",y=1.2,x=0),
+    )
+    st.plotly_chart(fig,use_container_width=True,key="ignis_v6_calibration_holdout")
+    st.dataframe(evaluacion,use_container_width=True,hide_index=True)
+    st.download_button(
+        "Descargar diagnóstico experimental (CSV)",
+        evaluacion.to_csv(index=False).encode("utf-8-sig"),
+        file_name="IGNIS_LAB_TASAS_EXPERIMENTAL_NO_VALIDADO.csv",
+        mime="text/csv",key="ignis_v6_calibration_csv",
+    )
+    st.error(
+        "RESULTADO EXPLORATORIO: puede medir coherencia instrumental frente "
+        "a MODIS dentro de estas fechas, pero NO valida las oportunidades "
+        "de observación suministradas, no corrige diferencias de sensibilidad "
+        "espacial o nubosidad y no demuestra una serie histórica armonizada."
+    )
+
 def _exportar(datos,region,sensores,demo=False):
     st.markdown('<div class="ignis-x-section">Exportación reproducible / Ciencia abierta</div>',unsafe_allow_html=True)
     st.write(
@@ -402,7 +522,7 @@ def mostrar_explorador(datos: pd.DataFrame | None, region: str, sensores: list[s
         )
     tabs=st.tabs([
         "01 · Historia", "02 · Explorador", "03 · NASA GIBS",
-        "04 · Método y fuentes", "05 · Descargar",
+        "04 · Método y fuentes", "05 · Descargar", "06 · Calibración piloto",
     ])
     with tabs[0]:
         _historia(z)
@@ -422,3 +542,5 @@ def mostrar_explorador(datos: pd.DataFrame | None, region: str, sensores: list[s
         _metodo(z)
     with tabs[4]:
         _exportar(z,region,sensores,demo=demo)
+    with tabs[5]:
+        _calibracion(z,demo=demo)
