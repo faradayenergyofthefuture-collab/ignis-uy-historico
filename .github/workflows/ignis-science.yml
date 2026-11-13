@@ -12,6 +12,12 @@ on:
       - "ignis_nrt.py"
       - "ignis_worldview.py"
       - "ignis_historico.py"
+      - "ignis_explorer_data.py"
+      - "ignis_explorador.py"
+      - "ignis_harmonizacion_piloto.py"
+      - "tests/test_ignis_explorer_v6.py"
+      - "tests/test_ignis_harmonizacion_piloto.py"
+      - "ignis_visual.py"
       - "tests/test_ignis_sensibilidad.py"
       - "tests/test_ignis_pareo_calidad_v5.py"
       - ".github/workflows/ignis-science.yml"
@@ -37,8 +43,13 @@ jobs:
       - name: Install scientific dependencies
         run: python -m pip install "numpy>=1.24" "pandas>=2" "scipy>=1.11"
       - name: Compile Python sources
-        run: python -m py_compile ignis_sensibilidad.py ignis_historico.py ignis_pareo_v5.py ignis_calidad.py ignis_worldview.py ignis_firms_sensor.py ignis_nrt.py
+        run: python -m py_compile ignis_sensibilidad.py ignis_historico.py ignis_pareo_v5.py ignis_calidad.py ignis_worldview.py ignis_firms_sensor.py ignis_nrt.py ignis_explorer_data.py ignis_explorador.py ignis_harmonizacion_piloto.py ignis_visual.py
       - name: Grid sensitivity tests
         run: python -m unittest discover -s tests -p 'test_ignis_sensibilidad.py' -v
       - name: UTC matching, quality and Worldview tests
         run: python -m unittest discover -s tests -p 'test_ignis_pareo_calidad_v5.py' -v
+
+      - name: Explorer V6 data and provenance tests
+        run: python -m unittest discover -s tests -p 'test_ignis_explorer_v6.py' -v
+      - name: Coverage-gated harmonization experiment tests
+        run: python -m unittest discover -s tests -p 'test_ignis_harmonizacion_piloto.py' -v
