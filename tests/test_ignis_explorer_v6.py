@@ -8,7 +8,7 @@ from zipfile import ZipFile
 import pandas as pd
 
 from ignis_explorer_data import (
-    calendario_instrumental, comparacion_mensual, crear_exportacion,
+    calendario_instrumental, comparacion_mensual, crear_exportacion, demo_sintetica,
     normalizar_explorador, resumen_explorador, series_anuales,
 )
 
@@ -91,6 +91,22 @@ class TestExplorerData(unittest.TestCase):
         r=resumen_explorador(None)
         self.assertEqual(r["observaciones"],0)
         self.assertIsNone(r["ultima_observacion_utc"])
+
+    def test_demo_sintetica_es_determinista_y_etiquetada(self):
+        a=demo_sintetica()
+        b=demo_sintetica()
+        pd.testing.assert_frame_equal(a,b)
+        self.assertGreater(len(a),100)
+        self.assertTrue(a["fuente"].str.contains("SIMULACION ARTIFICIAL").all())
+        self.assertTrue(a["id_registro"].str.startswith("DEMO-").all())
+
+    def test_zip_de_demo_no_afirma_nasa(self):
+        out=crear_exportacion(demo_sintetica(),"DEMO",["MODIS"],demo=True)
+        with ZipFile(io.BytesIO(out)) as zf:
+            manifest=json.loads(zf.read("manifest.json"))
+            self.assertTrue(manifest["demo_sintetica"])
+            self.assertIn("SINTÉTICOS",manifest["data_source"])
+            self.assertIn("NO PROVIENEN DE NASA",zf.read("LEEME.txt").decode("utf-8"))
 
     def test_familia_invalida(self):
         with self.assertRaises(ValueError):
