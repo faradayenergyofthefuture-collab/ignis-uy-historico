@@ -16,7 +16,7 @@ import streamlit as st
 
 from ignis_explorer_data import (
     MESES, calendario_instrumental, comparacion_mensual, crear_exportacion,
-    normalizar_explorador, resumen_explorador, series_anuales,
+    demo_sintetica, normalizar_explorador, resumen_explorador, series_anuales,
 )
 from ignis_worldview import enlace_worldview
 
@@ -79,7 +79,7 @@ def _styles():
     </style>""", unsafe_allow_html=True)
 
 
-def _hero(resumen: dict, region: str):
+def _hero(resumen: dict, region: str, demo: bool = False):
     rotulo = escape(str(region))
     st.markdown(f"""
     <div class="ignis-x-hero">
@@ -89,7 +89,7 @@ def _hero(resumen: dict, region: str):
       anomalías térmicas por fecha y contrastá el contexto visual con NASA.
       Cada cifra conserva su procedencia y sus límites científicos.</p>
       <span class="ignis-x-tag">REGIÓN · {rotulo}</span>
-      <span class="ignis-x-tag">DATOS ORIGINALES · SIN CALIBRAR</span>
+      <span class="ignis-x-tag">{"SIMULACIÓN SINTÉTICA · NO NASA" if demo else "DATOS ORIGINALES · SIN CALIBRAR"}</span>
       <span class="ignis-x-tag">NASA FIRMS / EOSDIS</span>
     </div>
     """, unsafe_allow_html=True)
@@ -345,7 +345,7 @@ def _metodo(datos):
     )
 
 
-def _exportar(datos,region,sensores):
+def _exportar(datos,region,sensores,demo=False):
     st.markdown('<div class="ignis-x-section">Exportación reproducible / Ciencia abierta</div>',unsafe_allow_html=True)
     st.write(
         "Prepará un paquete descargable con las observaciones del recorte, "
@@ -354,8 +354,8 @@ def _exportar(datos,region,sensores):
     )
     st.download_button(
         "Descargar conjunto de investigación ZIP",
-        crear_exportacion(datos,region,list(sensores)),
-        file_name="IGNIS_UY_Explorador_V6_Investigacion.zip",
+        crear_exportacion(datos,region,list(sensores),demo=demo),
+        file_name=("IGNIS_V6_DEMO_SINTETICA.zip" if demo else "IGNIS_UY_Explorador_V6_Investigacion.zip"),
         mime="application/zip",type="primary",
         key="ignis_v6_research_zip",
     )
@@ -368,28 +368,57 @@ def _exportar(datos,region,sensores):
 
 def mostrar_explorador(datos: pd.DataFrame | None, region: str, sensores: list[str]):
     _styles()
-    z=normalizar_explorador(datos)
+    z = normalizar_explorador(datos)
+    demo = False
     if z.empty:
-        _hero(resumen_explorador(z),region)
         st.info(
-            "El Explorador necesita datos del Maestro IGNIS. "
-            "Ingresá a «Carga de datos» y cargá ZIP/CSV de NASA FIRMS o un Maestro anterior."
+            "Todavía no hay registros cargados en el Maestro IGNIS. "
+            "Podés importar datos reales o explorar una demostración sintética "
+            "sin guardar nada en el histórico."
         )
-        return
-    _hero(resumen_explorador(z),region)
-    st.markdown(
-        '<div class="ignis-x-note"><b>Distinción científica:</b> IGNIS muestra registros '
-        'NASA FIRMS que efectivamente fueron importados. La ausencia de filas '
-        'no garantiza cobertura satelital ni ausencia de fuego; los sensores '
-        'todavía no están armonizados cuantitativamente.</div>',
-        unsafe_allow_html=True,
-    )
+        demo = st.checkbox(
+            "Explorar demostración 100 % sintética (no son observaciones de NASA)",
+            value=False, key="ignis_v6_demo_activa",
+        )
+        if demo:
+            z = normalizar_explorador(demo_sintetica())
+        else:
+            _hero(resumen_explorador(z),region)
+            return
+    _hero(resumen_explorador(z),region,demo=demo)
+    if demo:
+        st.error(
+            "MODO DE DEMOSTRACIÓN: TODOS los puntos, fechas y recuentos de esta "
+            "vista son sintéticos. No proceden de NASA FIRMS y no representan "
+            "incendios ni anomalías reales. No se agregan al Maestro."
+        )
+    else:
+        st.markdown(
+            '<div class="ignis-x-note"><b>Distinción científica:</b> IGNIS muestra registros '
+            'NASA FIRMS que efectivamente fueron importados. La ausencia de filas '
+            'no garantiza cobertura satelital ni ausencia de fuego; los sensores '
+            'todavía no están armonizados cuantitativamente.</div>',
+            unsafe_allow_html=True,
+        )
     tabs=st.tabs([
         "01 · Historia", "02 · Explorador", "03 · NASA GIBS",
         "04 · Método y fuentes", "05 · Descargar",
     ])
-    with tabs[0]:_historia(z)
-    with tabs[1]:_mapa_observaciones(z)
-    with tabs[2]:_capas_gibs(z)
-    with tabs[3]:_metodo(z)
-    with tabs[4]:_exportar(z,region,sensores)
+    with tabs[0]:
+        _historia(z)
+    with tabs[1]:
+        _mapa_observaciones(z)
+    with tabs[2]:
+        if demo:
+            st.warning(
+                "El mapa de NASA GIBS se desactiva en modo sintético para evitar "
+                "asociar registros ficticios a imágenes satelitales reales. "
+                "Cargá registros FIRMS auténticos para usarlo."
+            )
+            st.link_button("Explorar NASA Worldview directamente","https://worldview.earthdata.nasa.gov/")
+        else:
+            _capas_gibs(z)
+    with tabs[3]:
+        _metodo(z)
+    with tabs[4]:
+        _exportar(z,region,sensores,demo=demo)
