@@ -15,6 +15,7 @@ from ignis_sensibilidad import comparar_resoluciones, diagnostico_comparabilidad
 from ignis_calidad import auditar_datos, inventario_mensual, lectura_diagnostica
 from ignis_pareo_v5 import emparejar_global, resumen_global
 from ignis_worldview import enlace_worldview
+from ignis_firms_sensor import clasificar_instrumentos
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -88,33 +89,28 @@ def parse_firms(blob, filename):
             if not {'latitude','longitude','acq_date'}.issubset(df):
                 errors.append(f'{name}: falta latitude, longitude o acq_date');continue
             sat=df.get('satellite',pd.Series('',index=df.index)).fillna('').astype(str).str.upper()
-            ins=df.get('instrument',pd.Series('',index=df.index)).fillna('').astype(str).str.upper()
-            low=name.lower()
-            if ins.eq('MODIS').all() or 'm-c61' in low or 'modis' in low:
-                instrument='MODIS'
-            elif ins.eq('VIIRS').all() or any(t in low for t in ('viirs','j1v','sv-c2')):
-                if sat.isin(['N20','NOAA-20','J1']).all() or any(t in low for t in ('j1v','noaa20','noaa-20')):instrument='VIIRS NOAA-20'
-                elif sat.isin(['N21','NOAA-21','J2']).all() or any(t in low for t in ('j2v','noaa21','noaa-21')):instrument='VIIRS NOAA-21'
-                elif sat.isin(['SNPP','S-NPP','NPP']).all() or any(t in low for t in ('sv-c2','snpp','s-npp')):instrument='VIIRS S-NPP'
-                else:instrument='VIIRS (plataforma no identificada)'
-            else:
-                errors.append(f'{name}: instrumento no identificado, omitido');continue
+            instrumentos=clasificar_instrumentos(df,name)
+            sin_identificar=int(instrumentos.isna().sum())
+            if sin_identificar:
+                errors.append(f'{name}: {sin_identificar} filas sin instrumento verificable, omitidas.')
+            if instrumentos.notna().sum()==0:
+                errors.append(f'{name}: ninguna fila con MODIS/VIIRS reconocible.');continue
             out=pd.DataFrame(index=df.index)
             out['fecha']=pd.to_datetime(df.acq_date,utc=True,errors='coerce').dt.strftime('%Y-%m-%d')
             out['latitude']=pd.to_numeric(df.latitude,errors='coerce')
             out['longitude']=pd.to_numeric(df.longitude,errors='coerce')
-            out['instrumento']=instrument
+            out['instrumento']=instrumentos
             out['satellite']=sat
             out['acq_time']=df.get('acq_time',pd.Series('',index=df.index)).fillna('').astype(str).str.replace(r'\.0$','',regex=True).str.zfill(4)
             out['frp']=pd.to_numeric(df.get('frp',pd.Series(np.nan,index=df.index)),errors='coerce')
             out['confidence']=df.get('confidence',pd.Series('',index=df.index)).fillna('').astype(str)
             out['fuente']=filename+' :: '+name
-            out=out.dropna(subset=['fecha','latitude','longitude'])
+            out=out.dropna(subset=['fecha','latitude','longitude','instrumento'])
             out=out[out.latitude.between(-90,90)&out.longitude.between(-180,180)].copy()
             # Mantener identidad estable entre cargas, sin usar el nombre del ZIP.
             identity=out[['fecha','latitude','longitude','instrumento','satellite','acq_time','frp','confidence']].fillna('').astype(str).agg('|'.join,axis=1)
             out['id_registro']=identity.map(lambda t:hashlib.sha256(t.encode()).hexdigest()[:24])
-            result.append(out[COLS]);sources.append({'archivo':filename,'csv':name,'sensor':instrument,'registros_validos':len(out),'primer_dia':out.fecha.min() if len(out) else '', 'ultimo_dia':out.fecha.max() if len(out) else '', 'sha256':hashlib.sha256(raw).hexdigest()})
+            result.append(out[COLS]);sources.append({'archivo':filename,'csv':name,'sensor':', '.join(sorted(out.instrumento.unique())) if len(out) else 'Sin registros válidos','registros_validos':len(out),'primer_dia':out.fecha.min() if len(out) else '', 'ultimo_dia':out.fecha.max() if len(out) else '', 'sha256':hashlib.sha256(raw).hexdigest()})
         except Exception as e: errors.append(f'{name}: error ({type(e).__name__}: {e})')
     return (pd.concat(result,ignore_index=True) if result else pd.DataFrame(columns=COLS)),errors,sources
 
