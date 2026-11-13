@@ -15,6 +15,7 @@ from ignis_sensibilidad import comparar_resoluciones, diagnostico_comparabilidad
 from ignis_calidad import auditar_datos, inventario_mensual, lectura_diagnostica
 from ignis_pareo_v5 import emparejar_global, resumen_global
 from ignis_worldview import enlace_worldview
+from ignis_explorador import mostrar_explorador
 from ignis_firms_sensor import clasificar_instrumentos
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib import colors
@@ -485,6 +486,7 @@ NAV_PAGES = [
     "🤖 ASK IGNIS",
     "🌎 Fusión cielo–tierra",
     "💬 Team IGNIS · Consultas y aportes",
+    "🧭 EXPLORADOR V6 · Datos NASA",
 ]
 
 def _ignis_navigate_to(section: str) -> None:
@@ -523,6 +525,14 @@ with st.sidebar:
     if st.session_state["ignis_nav"] not in NAV_PAGES:
         _ignis_navigate_to(NAV_PAGES[0])
     current_section = st.session_state["ignis_nav"]
+    st.button(
+        "🧭 Abrir EXPLORADOR V6",
+        key="ignis_explorer_featured",
+        type="primary" if current_section == NAV_PAGES[15] else "secondary",
+        use_container_width=True,
+        on_click=_ignis_navigate_to,
+        args=(NAV_PAGES[15],),
+    )
     for i, section in enumerate(NAV_PAGES):
         clean_label = section.split(" ", 1)[1] if " " in section else section
         st.button(
@@ -580,7 +590,7 @@ with st.sidebar:
     )
 
 # El Inicio, el Centro de control y el Atlas renderizan su cabecera específica.
-if current_section not in (NAV_PAGES[0], NAV_PAGES[1], NAV_PAGES[6], NAV_PAGES[14]):
+if current_section not in (NAV_PAGES[0], NAV_PAGES[1], NAV_PAGES[6], NAV_PAGES[14], NAV_PAGES[15]):
     st.markdown(f"""<div class="ignis-topline"><div class="ignis-kicker">
        IGNIS UY · Herramientas de investigación</div>
        <h1>{current_section.split(' ',1)[1]}</h1>
@@ -1020,6 +1030,12 @@ if current_section==NAV_PAGES[13]:
 if current_section == NAV_PAGES[14]:
     from ignis_feedback import mostrar_contacto_team
     mostrar_contacto_team()
+
+# Experiencia científica de nueva generación inspirada funcionalmente en
+# exploradores de datos de NASA; conserva diseño propio de IGNIS.
+if current_section == NAV_PAGES[15]:
+    mostrar_explorador(sample, reg, sens)
+
 
 
 st.divider()
