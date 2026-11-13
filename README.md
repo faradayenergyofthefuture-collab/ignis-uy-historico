@@ -16,6 +16,11 @@
 - **Auditoría de calidad FIRMS:** coordenadas, fechas, horarios, FRP, posibles duplicados e inventario mensual con advertencia de cobertura no verificada.
 - **NASA Worldview:** enlace por fecha y localización desde el Atlas y desde el monitoreo NRT.
 - Trazabilidad documental, asociación experimental NASA–Bomberos/PAIF–SINAE/MIRA, sección de aportes e interfaz Ask IGNIS **basada en reglas** (no es un LLM).
+- **Explorador V6** inspirado funcionalmente en Kiln Watch: portada científica, dos calendarios comparativos MODIS/VIIRS, serie anual, mapas por mes, documentación visible y paquetes ZIP con hashes y filtros.
+- **Capas NASA GIBS** por día activadas bajo demanda con imágenes térmicas WMS (disponibilidad no garantizada), más enlaces NASA Worldview.
+- **Demo sin archivos**, con datos 100 % sintéticos y advertencias visibles; no modifica el Maestro ni se mezcla con imágenes NASA.
+- **Laboratorio de tasas instrumental** condicionado a un archivo externo de cobertura por día/sensor, ajuste temporal y evaluación fuera de muestra. **No** demuestra calibración científica validada ni sustituye una serie armonizada.
+
 
 Los archivos disponibles en una sesión no garantizan cobertura temporal o instrumental completa. Las salidas **no son alertas oficiales**.
 
@@ -35,6 +40,8 @@ Configurar `FIRMS_MAP_KEY` en los secrets de Streamlit para consultas recientes 
 ```bash
 python -m unittest discover -s tests -p "test_ignis_sensibilidad.py" -v
 python -m unittest discover -s tests -p "test_ignis_pareo_calidad_v5.py" -v
+python -m unittest discover -s tests -p "test_ignis_explorer_v6.py" -v
+python -m unittest discover -s tests -p "test_ignis_harmonizacion_piloto.py" -v
 ```
 
 Las pruebas sintéticas de sensibilidad no sustituyen validación con incendios confirmados.
@@ -48,6 +55,7 @@ Las pruebas sintéticas de sensibilidad no sustituyen validación con incendios 
 | [Validación y límites](docs/VALIDACION_Y_LIMITES.md) | Casos, alcance de pruebas, sesgos e incertidumbre pendiente |
 | [Calidad y pareo V5](docs/V5_CALIDAD_Y_PAREO.md) | Importación por fila, cruces de medianoche, inventario de datos y Worldview |
 | [Uso de IA](docs/USO_DE_IA.md) | Capacidades reales de Ask IGNIS y registro de herramientas por completar |
+| [Explorador V6 / referencia Kiln Watch](docs/EXPLORADOR_V6_REFERENCIA_KILN_WATCH.md) | Comparación de funciones, GIBS, exportación y experimento de cobertura |
 | [Hoja de ruta](docs/HOJA_DE_RUTA.md) | Fases hacia cobertura, armonización cuantitativa y visualización NASA GIBS |
 | [Contribuciones](TEAM_IGNIS_CONTRIBUCIONES.md) | Consultas públicas mediante GitHub Issues |
 
