@@ -77,7 +77,11 @@ def comparar_resoluciones(
     z = preparar_observaciones(datos)
     if ano is not None:
         z = z[z["anio"] == int(ano)]
-    meses_ambos = int(presencia_mensual(z)["Ambas presentes"].sum()) if not z.empty else 0
+    meses_ambos = 0
+    if not z.empty:
+        presencia = z.groupby(["mes_utc", "familia"]).size().unstack(fill_value=0)
+        if "MODIS" in presencia and "VIIRS" in presencia:
+            meses_ambos = int(((presencia["MODIS"] > 0) & (presencia["VIIRS"] > 0)).sum())
     salida = []
     for res in resoluciones:
         res = float(res)
