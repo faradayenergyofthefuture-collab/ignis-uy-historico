@@ -11,6 +11,7 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 from ignis_coincidencias import emparejar, resumir_pares
+from ignis_sensibilidad import comparar_resoluciones, diagnostico_comparabilidad
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage, KeepTogether
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -90,6 +91,7 @@ def parse_firms(blob, filename):
                 instrument='MODIS'
             elif ins.eq('VIIRS').all() or any(t in low for t in ('viirs','j1v','sv-c2')):
                 if sat.isin(['N20','NOAA-20','J1']).all() or any(t in low for t in ('j1v','noaa20','noaa-20')):instrument='VIIRS NOAA-20'
+                elif sat.isin(['N21','NOAA-21','J2']).all() or any(t in low for t in ('j2v','noaa21','noaa-21')):instrument='VIIRS NOAA-21'
                 elif sat.isin(['SNPP','S-NPP','NPP']).all() or any(t in low for t in ('sv-c2','snpp','s-npp')):instrument='VIIRS S-NPP'
                 else:instrument='VIIRS (plataforma no identificada)'
             else:
@@ -766,6 +768,38 @@ if current_section==NAV_PAGES[5]:
                 st.download_button('Descargar pares candidatos (CSV)',pares.to_csv(index=False).encode('utf-8-sig'),file_name=f'IGNIS_pares_{selected}.csv',mime='text/csv')
                 st.caption('Un registro puede participar en pares de distintos satélites VIIRS; los pares NO son incendios únicos. FRP se conserva, pero NO se compara como medida calibrada.')
             else: st.info('No se encontraron pares dentro de estos umbrales. Podés ampliar los parámetros sin modificar los datos.')
+
+
+        st.divider()
+        with st.expander('Laboratorio de sensibilidad espacial · 0,05° a 0,40° (exploratorio)', expanded=False):
+            st.caption(
+                'Compara la misma regla celda-día a distintas escalas usando exclusivamente '
+                'el Maestro y los filtros activos. No calibra cobertura, FRP ni probabilidad de incendio.'
+            )
+            comparabilidad = diagnostico_comparabilidad(sample)
+            ca, cb, cc = st.columns(3)
+            ca.metric('Registros válidos cargados', f"{comparabilidad['registros']:,}")
+            cb.metric('Meses importados', comparabilidad['meses_importados'])
+            cc.metric('Meses con ambas familias', comparabilidad['meses_con_ambas_familias'])
+            tabla_sensibilidad = comparar_resoluciones(sample, ano=selected)
+            st.dataframe(tabla_sensibilidad, use_container_width=True, hide_index=True)
+            st.download_button(
+                'Descargar sensibilidad de cuadrícula (CSV)',
+                tabla_sensibilidad.to_csv(index=False).encode('utf-8-sig'),
+                file_name=f'IGNIS_sensibilidad_cuadricula_{selected}.csv',
+                mime='text/csv',
+                key='ignis_sensibilidad_descarga',
+            )
+            cuentas = tabla_sensibilidad['Celdas-día con ambos'].unique()
+            if len(cuentas) > 1:
+                st.info('La cantidad de coincidencias varía según la escala: la regla es sensible al tamaño de celda.')
+            else:
+                st.info('En este recorte la cantidad de coincidencias no cambia entre las escalas probadas; esto no valida la regla ni su cobertura.')
+            st.warning(
+                'Los ceros significan ausencia de detecciones en los archivos importados, '
+                'no que el satélite haya observado sin fuego. Estas cuentas NO son una serie calibrada. '
+                'Las oportunidades de observación instrumental todavía no están verificadas.'
+            )
 
 
 # B — Atlas científico con mapa dominante, filtros y análisis lateral.
