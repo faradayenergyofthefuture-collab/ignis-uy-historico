@@ -110,7 +110,40 @@ def series_anuales(datos: pd.DataFrame | None) -> pd.DataFrame:
     return out.rename(columns={"anio": "Año", "familia": "Familia"})
 
 
-def crear_exportacion(datos: pd.DataFrame | None, region: str, filtros: list[str]) -> bytes:
+
+def demo_sintetica() -> pd.DataFrame:
+    """Datos generados, NO observaciones NASA, para probar interfaz sin claves.
+
+    Dataset de ejemplo deliberadamente breve, limitado a años seleccionados.
+    NUNCA se incorpora automáticamente al Maestro IGNIS ni a alertas.
+    """
+    rng = np.random.default_rng(2026)
+    filas = []
+    for year in (2001, 2005, 2012, 2018, 2023, 2026):
+        for mes in (1, 2, 12):
+            for sensor in ("MODIS", "VIIRS NOAA-20"):
+                if sensor.startswith("VIIRS") and year < 2018:
+                    continue
+                n = 4 + (year % 5) + (mes % 3)
+                if sensor.startswith("VIIRS"):
+                    n = n * 2
+                for idx in range(n):
+                    day = int(rng.integers(1, 25))
+                    filas.append({
+                        "fecha": f"{year:04d}-{mes:02d}-{day:02d}",
+                        "latitude": float(rng.uniform(-35, -30.2)),
+                        "longitude": float(rng.uniform(-58.4, -53.2)),
+                        "instrumento": sensor,
+                        "satellite": "N20" if sensor.startswith("VIIRS") else "A",
+                        "acq_time": "1415",
+                        "frp": None,
+                        "confidence": "simulada",
+                        "fuente": "SIMULACION ARTIFICIAL — NO NASA FIRMS",
+                        "id_registro": f"DEMO-{year}-{mes}-{sensor}-{idx:03d}",
+                    })
+    return pd.DataFrame(filas)
+
+def crear_exportacion(datos: pd.DataFrame | None, region: str, filtros: list[str], demo: bool = False) -> bytes:
     """Paquete verificable: no modifica el Maestro ni afirma armonización."""
     z = normalizar_explorador(datos)
     # Los campos adicionales de fuente/ID se conservan si existen.
@@ -132,7 +165,8 @@ def crear_exportacion(datos: pd.DataFrame | None, region: str, filtros: list[str
         "exported_at_utc": datetime.now(timezone.utc).isoformat(),
         "region_selected": str(region),
         "instrument_filters": list(map(str, filtros)),
-        "data_source": "NASA FIRMS, archivos efectivamente cargados en el Maestro IGNIS",
+        "data_source": ("DATOS SINTÉTICOS PARA DEMOSTRACIÓN — NO NASA" if demo else "NASA FIRMS, archivos efectivamente cargados en el Maestro IGNIS"),
+        "demo_sintetica": bool(demo),
         "observation_count": int(len(z)),
         "date_range_utc": [
             z.fecha_utc.min().strftime("%Y-%m-%d") if len(z) else None,
