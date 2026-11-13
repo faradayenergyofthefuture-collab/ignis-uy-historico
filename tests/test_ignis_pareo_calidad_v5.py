@@ -7,6 +7,7 @@ import unittest
 import pandas as pd
 
 from ignis_calidad import auditar_datos, inventario_mensual, lectura_diagnostica
+from ignis_firms_sensor import clasificar_instrumentos
 from ignis_pareo_v5 import emparejar_global, preparar_pareo, tiempos_adquisicion
 from ignis_worldview import enlace_worldview
 
@@ -142,6 +143,42 @@ class TestCalidad(unittest.TestCase):
         febrero = tabla[tabla["Mes UTC"]=="2026-02"]
         self.assertTrue((febrero["Estado de datos"]=="SIN REGISTROS IMPORTADOS").all())
         self.assertTrue((tabla["Cobertura orbital verificada"]=="NO").all())
+
+
+class TestImportacionNASA(unittest.TestCase):
+    def test_identificacion_por_fila_para_archivo_viirs_mezclado(self):
+        datos = pd.DataFrame({
+            "instrument": ["VIIRS", "VIIRS", "VIIRS", "MODIS"],
+            "satellite": ["N20", "N21", "SNPP", "A"],
+        })
+        etiquetas = clasificar_instrumentos(datos, "VIIRS_2026.csv")
+        self.assertEqual(etiquetas.tolist(), [
+            "VIIRS NOAA-20", "VIIRS NOAA-21", "VIIRS S-NPP", "MODIS",
+        ])
+
+    def test_satelite_prevalece_sobre_nombre_archivo(self):
+        datos = pd.DataFrame({
+            "instrument": ["VIIRS", "VIIRS"],
+            "satellite": ["N21", "N20"],
+        })
+        etiquetas = clasificar_instrumentos(datos, "j1v-noaa20.csv")
+        self.assertEqual(etiquetas.tolist(), ["VIIRS NOAA-21", "VIIRS NOAA-20"])
+
+    def test_archivo_reconocible_sin_satelite(self):
+        datos = pd.DataFrame({
+            "instrument": ["VIIRS"],
+            "satellite": [""],
+        })
+        etiquetas = clasificar_instrumentos(datos,"VIIRS_NOAA21_2026.csv")
+        self.assertEqual(etiquetas.iloc[0], "VIIRS NOAA-21")
+
+    def test_desconocido_no_se_inventa_instrumento(self):
+        datos = pd.DataFrame({
+            "instrument": ["ASTER", ""],
+            "satellite": ["UNKNOWN", "UNKNOWN"],
+        })
+        etiquetas = clasificar_instrumentos(datos,"datos.csv")
+        self.assertTrue(etiquetas.isna().all())
 
 
 class TestWorldview(unittest.TestCase):
