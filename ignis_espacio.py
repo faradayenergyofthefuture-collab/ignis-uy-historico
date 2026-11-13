@@ -66,6 +66,22 @@ SATELLITE_CATALOG = [
 ]
 
 
+MAX_HOTSPOTS_3D = 1500
+
+
+def _uruguay_outline() -> List[List[float]]:
+    """Contorno [lon, lat] desde uruguay_contorno.geojson (vacío si falta)."""
+    try:
+        from pathlib import Path
+        path = Path(__file__).resolve().parent / "uruguay_contorno.geojson"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        geometry = data["features"][0]["geometry"]
+        ring = geometry["coordinates"][0]
+        return [[float(p[0]), float(p[1])] for p in ring]
+    except Exception:
+        return []
+
+
 def _normalize_fire_frame(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     if df is None or df.empty:
         return pd.DataFrame(columns=["fecha", "latitude", "longitude", "instrumento", "satellite", "frp", "confidence"])
@@ -219,9 +235,14 @@ def _build_hotspot_payload(frame: pd.DataFrame, selected_date: Optional[datetime
         hotspot_frame = hotspot_frame[hotspot_frame["fecha"].dt.date == selected_day]
     if satellite_filter and satellite_filter != "Todos":
         hotspot_frame = hotspot_frame[hotspot_frame["satellite"].str.contains(satellite_filter, case=False, na=False)]
+    if len(hotspot_frame) > MAX_HOTSPOTS_3D:
+        # Con tope, se conservan los de mayor FRP (no los más antiguos).
+        hotspot_frame = hotspot_frame.assign(
+            _frp_orden=pd.to_numeric(hotspot_frame.get("frp"), errors="coerce").fillna(0)
+        ).nlargest(MAX_HOTSPOTS_3D, "_frp_orden")
     hotspot_frame = hotspot_frame.sort_values("fecha").reset_index(drop=True)
     items: List[Dict[str, Any]] = []
-    for _, row in hotspot_frame.head(1200).iterrows():
+    for _, row in hotspot_frame.iterrows():
         frp = float(row.get("frp", 0) or 0)
         color = "#f7b267"
         if frp > 150:
@@ -293,6 +314,32 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           canvas {{
             display: block; width: 100% !important; height: 100% !important;
           }}
+          #ignis-tip {{
+            position:absolute; z-index:12; display:none; pointer-events:none;
+            white-space:pre; padding:7px 10px; border-radius:9px;
+            font:12px/1.4 Arial,sans-serif; color:#effcff;
+            background:rgba(3,14,28,.92); border:1px solid rgba(255,157,67,.7);
+          }}
+          #ignis-legend {{
+            position:absolute; right:18px; bottom:19px; z-index:10;
+            padding:8px 12px; border-radius:10px; color:#c8e0ef;
+            background:rgba(3,14,28,.76); font:11px/1.6 Arial,sans-serif;
+          }}
+          #ignis-legend i {{
+            display:inline-block; width:9px; height:9px; border-radius:50%;
+            margin-right:6px;
+          }}
+          #ignis-orbit-ctl {{
+            position:absolute; left:50%; bottom:19px; transform:translateX(-50%);
+            z-index:10; display:flex; gap:8px; align-items:center;
+            padding:6px 12px; border-radius:10px; color:#c8e0ef;
+            background:rgba(3,14,28,.76); font:12px Arial,sans-serif;
+          }}
+          #ignis-orbit-ctl button, #ignis-orbit-ctl select {{
+            background:#0b2237; color:#effcff; border:1px solid #326180;
+            border-radius:7px; padding:3px 9px; font:12px Arial,sans-serif;
+            cursor:pointer;
+          }}
         </style>
       </head>
       <body>
@@ -301,7 +348,25 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           <div class="ignis-globe-watermark">
             IGNIS UY <span>· EXPLORADOR 3D</span>
           </div>
-          <div class="ignis-globe-help">Arrastrar para rotar · Rueda para acercar</div>
+          <div class="ignis-globe-help">Arrastrar para rotar · Rueda para acercar · Pasar el cursor sobre una columna</div>
+          <div id="ignis-tip"></div>
+          <div id="ignis-legend">
+            <b>Potencia radiativa (FRP)</b><br>
+            <i style="background:#f7b267"></i>&lt; 25 MW<br>
+            <i style="background:#ffd166"></i>25–70 MW<br>
+            <i style="background:#ff9f43"></i>70–150 MW<br>
+            <i style="background:#ff5d73"></i>&gt; 150 MW<br>
+            Altura de la columna ∝ FRP
+          </div>
+          <div id="ignis-orbit-ctl">
+            <button id="ignis-play" type="button">⏸ Pausa</button>
+            <select id="ignis-speed" aria-label="Velocidad orbital">
+              <option value="1">×1</option>
+              <option value="3" selected>×3</option>
+              <option value="8">×8</option>
+            </select>
+            <span id="ignis-orbit-clock"></span>
+          </div>
           <div id="globe-root"></div>
         </div>
         <script type="importmap">
@@ -490,10 +555,14 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           const showBounds = payload.show_bounds !== false;
 
           if (showBounds) {{
-            const uruguayPoints = [
+            const fallbackOutline = [
               [-58.4, -34.9], [-58.1, -34.2], [-57.2, -33.5], [-56.4, -32.8], [-55.8, -32.0],
               [-54.7, -31.6], [-54.3, -32.2], [-54.7, -33.0], [-55.5, -34.0], [-56.1, -34.8]
-            ].map(([lon, lat]) => latLonToVector3(lat, lon, 2.22));
+            ];
+            const ring = (Array.isArray(payload.outline) && payload.outline.length > 3)
+              ? payload.outline : fallbackOutline;
+            const uruguayPoints = ring.map(([lon, lat]) => latLonToVector3(lat, lon, 2.205));
+            uruguayPoints.push(uruguayPoints[0].clone());
             const outline = new THREE.BufferGeometry().setFromPoints(uruguayPoints);
             const outlineLine = new THREE.Line(
               outline,
@@ -549,6 +618,7 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           }}
           let illustrativeOrbits = 0;
           let tleOrbits = 0;
+          const movers = [];
           if (payload.satellites && (showSatellites || showOrbits)) {{
             payload.satellites.forEach((sat,index) => {{
               const color = new THREE.Color(sat.color);
@@ -587,20 +657,69 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
                 label.position.copy(markerPoint).multiplyScalar(1.06);
                 label.position.y += .10;
                 earthGroup.add(label);
+                movers.push({{ marker, label, points, schematic,
+                  phase: schematic ? ((index*.18+.07)%1) : 0 }});
               }}
             }});
           }}
 
-          if (showHotspots && payload.hotspots) {{
-            payload.hotspots.forEach((point) => {{
-              const mesh = new THREE.Mesh(
-                new THREE.SphereGeometry(Math.min(0.08 + point.frp / 180, 0.2), 16, 16),
-                new THREE.MeshBasicMaterial({{ color: new THREE.Color(point.color), transparent: true, opacity: 0.9 }})
-              );
-              mesh.position.copy(latLonToVector3(point.lat, point.lon, 2.31));
-              earthGroup.add(mesh);
+          let hotspotMesh = null;
+          if (showHotspots && payload.hotspots && payload.hotspots.length) {{
+            // Una sola InstancedMesh: columnas apoyadas en la superficie, altura ∝ FRP.
+            const items = payload.hotspots;
+            const columnGeometry = new THREE.CylinderGeometry(0.008, 0.014, 1, 6, 1, false);
+            columnGeometry.translate(0, 0.5, 0);
+            hotspotMesh = new THREE.InstancedMesh(
+              columnGeometry,
+              new THREE.MeshBasicMaterial({{ color: 0xffffff, transparent: true, opacity: 0.95 }}),
+              items.length
+            );
+            const upAxis = new THREE.Vector3(0, 1, 0);
+            const dummy = new THREE.Object3D();
+            items.forEach((point, i) => {{
+              const normal = latLonToVector3(point.lat, point.lon, 1).normalize();
+              const frp = Math.min(Math.max(Number(point.frp) || 0, 0), 300);
+              dummy.position.copy(normal).multiplyScalar(2.2);
+              dummy.quaternion.setFromUnitVectors(upAxis, normal);
+              dummy.scale.set(1, 0.05 + (frp / 300) * 0.40, 1);
+              dummy.updateMatrix();
+              hotspotMesh.setMatrixAt(i, dummy.matrix);
+              hotspotMesh.setColorAt(i, new THREE.Color(point.color));
             }});
+            hotspotMesh.instanceMatrix.needsUpdate = true;
+            if (hotspotMesh.instanceColor) hotspotMesh.instanceColor.needsUpdate = true;
+            earthGroup.add(hotspotMesh);
           }}
+
+          // Tooltip: se ignoran columnas ocultas detrás de la Tierra.
+          const tip = document.getElementById('ignis-tip');
+          const raycaster = new THREE.Raycaster();
+          const pointer = new THREE.Vector2();
+          renderer.domElement.addEventListener('pointermove', (event) => {{
+            if (!hotspotMesh) return;
+            const rect = renderer.domElement.getBoundingClientRect();
+            pointer.set(
+              ((event.clientX - rect.left) / rect.width) * 2 - 1,
+              -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            raycaster.setFromCamera(pointer, camera);
+            const hit = raycaster.intersectObjects([earth, hotspotMesh], false)[0];
+            if (hit && hit.object === hotspotMesh && hit.instanceId !== undefined) {{
+              const p = payload.hotspots[hit.instanceId];
+              tip.textContent = [
+                (p.sensor || 'Sensor ?') + ' · ' + (p.satellite || ''),
+                'FRP: ' + (Number(p.frp) || 0).toFixed(1) + ' MW',
+                'Confianza: ' + (p.confidence || '—'),
+                (p.date || '').replace('T', ' ').slice(0, 16) + ' UTC',
+                p.lat.toFixed(3) + ', ' + p.lon.toFixed(3)
+              ].join('\\n');
+              tip.style.left = (event.clientX - rect.left + 14) + 'px';
+              tip.style.top = (event.clientY - rect.top + 14) + 'px';
+              tip.style.display = 'block';
+            }} else {{
+              tip.style.display = 'none';
+            }}
+          }});
 
           const region = payload.region || 'global';
           if (region === 'uruguay') {{
@@ -631,8 +750,41 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
 
           setStatus('Cargando texturas Blue/Black Marble…');
 
+          let playing = true;
+          let orbitSpeed = 3;
+          let orbitT = 0;
+          const playButton = document.getElementById('ignis-play');
+          const speedSelect = document.getElementById('ignis-speed');
+          const orbitClock = document.getElementById('ignis-orbit-clock');
+          const anyTle = movers.some((m) => !m.schematic);
+          if (!movers.length) {{
+            document.getElementById('ignis-orbit-ctl').style.display = 'none';
+          }}
+          playButton.addEventListener('click', () => {{
+            playing = !playing;
+            playButton.textContent = playing ? '⏸ Pausa' : '▶ Reproducir';
+          }});
+          speedSelect.addEventListener('change', () => {{ orbitSpeed = Number(speedSelect.value) || 1; }});
+
+          function updateMovers() {{
+            movers.forEach((m) => {{
+              const n = m.points.length;
+              const pos = m.points[Math.min(n - 1, Math.floor(((orbitT + m.phase) % 1) * (n - 1)))];
+              m.marker.position.copy(pos);
+              m.label.position.copy(pos).multiplyScalar(1.06);
+              m.label.position.y += .10;
+            }});
+            orbitClock.textContent = anyTle
+              ? 'Simulación: +' + Math.round(orbitT * 105) + ' min desde la consulta de TLE'
+              : 'Movimiento esquemático';
+          }}
+
           function animate() {{
             requestAnimationFrame(animate);
+            if (playing && movers.length) {{
+              orbitT = (orbitT + 0.00035 * orbitSpeed) % 1;
+            }}
+            updateMovers();
             // Rotar la cámara y no la textura: las detecciones permanecen georreferenciadas.
             controls.update();
             renderer.render(scene, camera);
@@ -641,7 +793,12 @@ def _render_globe_html(config: Dict[str, Any]) -> str:
           const orbitStatus = (showOrbits && illustrativeOrbits > 0)
             ? ' · órbitas ilustrativas ('+illustrativeOrbits+')'
             : (showOrbits && tleOrbits > 0 ? ' · TLE actuales' : '');
-          setStatus('3D listo'+orbitStatus);
+          const shownHotspots = (payload.hotspots || []).length;
+          const totalHotspots = Number(payload.hotspots_total) || shownHotspots;
+          const hotspotNote = (showHotspots && totalHotspots > shownHotspots)
+            ? ' · focos: ' + shownHotspots + ' de ' + totalHotspots + ' (mayor FRP)'
+            : (showHotspots && shownHotspots ? ' · focos: ' + shownHotspots : '');
+          setStatus('3D listo'+orbitStatus+hotspotNote);
           }} catch (error) {{
             console.error('IGNIS 3D error:', error);
             const message = error && error.message ? error.message : 'Error no identificado al preparar la vista 3D.';
@@ -793,6 +950,8 @@ def render_ignis_space_module(df: Optional[pd.DataFrame]) -> None:
         "earth_visualization": earth_visualization,
         "satellites": satellites,
         "hotspots": hotspots,
+        "hotspots_total": int(len(filtered_frame)),
+        "outline": _uruguay_outline(),
     }
 
     with globe_slot:
