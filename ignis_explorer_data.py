@@ -187,10 +187,11 @@ def crear_exportacion(datos: pd.DataFrame | None, region: str, filtros: list[str
         ],
     }
     info = (
-        "IGNIS UY — EXPORTACIÓN DE INVESTIGACIÓN\n"
-        "Los valores CSV son observaciones térmicas NASA FIRMS importadas, NO incendios únicos.\n"
-        "No se estiman cobertura de satélite, armonización cuantitativa ni superficie quemada.\n"
-        "El archivo manifest.json contiene filtros, método, fecha, y hashes SHA-256.\n"
+        ("ATENCIÓN: DATOS COMPLETAMENTE SINTÉTICOS; NO PROVIENEN DE NASA FIRMS.\n" if demo else "")
+        + "IGNIS UY — EXPORTACIÓN DE INVESTIGACIÓN\n"
+        + "Las filas son datos sintéticos de prueba o anomalías térmicas importadas, NO incendios únicos.\n"
+        + "No se estiman cobertura de satélite, armonización cuantitativa ni superficie quemada.\n"
+        + "El archivo manifest.json contiene filtros, método, fecha, y hashes SHA-256.\n"
     )
     stream = io.BytesIO()
     with ZipFile(stream, "w", compression=ZIP_DEFLATED) as zf:
